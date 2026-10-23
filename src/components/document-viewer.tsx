@@ -15,9 +15,18 @@ export default function DocumentViewer({ document: original, initialPage = 1 }: 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const canvas = useRef<HTMLCanvasElement>(null);
+  const stage = useRef<HTMLDivElement>(null);
+  const [stageWidth, setStageWidth] = useState(0);
   const originalUrl = original?.url;
   const isPdf = original?.mimeType === "application/pdf";
   const isImage = original?.mimeType.startsWith("image/");
+
+  useEffect(() => {
+    if (!stage.current) return;
+    const observer = new ResizeObserver(entries => setStageWidth(entries[0].contentRect.width));
+    observer.observe(stage.current);
+    return () => observer.disconnect();
+  }, [originalUrl]);
 
   useEffect(() => {
     if (!originalUrl) return;
@@ -53,7 +62,9 @@ export default function DocumentViewer({ document: original, initialPage = 1 }: 
       try {
         const pdfPage = await pdf!.getPage(Math.min(page, pdf!.numPages));
         if (stopped || !canvas.current) return;
-        const viewport = pdfPage.getViewport({ scale: 1.15 * zoom });
+        const originalSize = pdfPage.getViewport({ scale: 1 });
+        const fitScale = stageWidth > 0 ? Math.max(100, stageWidth - 24) / originalSize.width : 1;
+        const viewport = pdfPage.getViewport({ scale: fitScale * zoom });
         const ratio = Math.min(window.devicePixelRatio || 1, 2);
         const target = canvas.current;
         target.height = viewport.height * ratio;
@@ -68,16 +79,16 @@ export default function DocumentViewer({ document: original, initialPage = 1 }: 
     }
     void render();
     return () => { stopped = true; renderTask?.cancel(); };
-  }, [pdf, page, zoom]);
+  }, [pdf, page, zoom, stageWidth]);
 
   if (!original) return <EmptyState icon={<FileTextIcon size={30} />} title="Orientação cadastrada manualmente">O texto informado é a fonte deste cuidado. Confira o conteúdo antes de confirmar.</EmptyState>;
   return <section className="document-viewer" data-parity-anchor="source-original" aria-label="Documento original">
     <div className="document-toolbar"><span><FileTextIcon size={20} /> <strong>{original.name}</strong></span><a className="icon-button" href={original.url} target="_blank" rel="noreferrer" aria-label="Abrir original em nova aba"><ArrowSquareOutIcon size={21} /></a></div>
     <div className="document-controls" data-parity-anchor="source-controls">
-      {isPdf && <div className="inline-controls"><button className="icon-button" aria-label="Página anterior" disabled={page <= 1} onClick={() => setPage(page - 1)}><CaretLeftIcon size={20} /></button><span>Página {page} de {pdf?.numPages ?? original.pageCount ?? "…"}</span><button className="icon-button" aria-label="Próxima página" disabled={!pdf || page >= pdf.numPages} onClick={() => setPage(page + 1)}><CaretRightIcon size={20} /></button></div>}
-      <div className="inline-controls"><button className="icon-button" aria-label="Diminuir zoom" disabled={zoom <= .6} onClick={() => setZoom(Math.max(.6, zoom - .2))}><MagnifyingGlassMinusIcon size={20} /></button><span>{Math.round(zoom * 100)}%</span><button className="icon-button" aria-label="Ampliar documento" disabled={zoom >= 2.4} onClick={() => setZoom(Math.min(2.4, zoom + .2))}><MagnifyingGlassPlusIcon size={20} /></button></div>
+      {isPdf && <div className="inline-controls"><button type="button" className="icon-button" aria-label="Página anterior" disabled={page <= 1} onClick={() => setPage(page - 1)}><CaretLeftIcon size={20} /></button><span>Página {page} de {pdf?.numPages ?? original.pageCount ?? "…"}</span><button type="button" className="icon-button" aria-label="Próxima página" disabled={!pdf || page >= pdf.numPages} onClick={() => setPage(page + 1)}><CaretRightIcon size={20} /></button></div>}
+      <div className="inline-controls"><button type="button" className="icon-button" aria-label="Diminuir zoom" disabled={zoom <= .6} onClick={() => setZoom(Math.max(.6, zoom - .2))}><MagnifyingGlassMinusIcon size={20} /></button><span>{Math.round(zoom * 100)}%</span><button type="button" className="icon-button" aria-label="Ampliar documento" disabled={zoom >= 2.4} onClick={() => setZoom(Math.min(2.4, zoom + .2))}><MagnifyingGlassPlusIcon size={20} /></button></div>
     </div>
     {error && <p className="error-message" role="alert">{error} <a href={original.url} target="_blank" rel="noreferrer">Abrir arquivo</a></p>}
-    <div className="document-stage">{loading && <p className="loading-line"><Busy>Lendo original…</Busy></p>}{isPdf ? <canvas ref={canvas} aria-label={`Página ${page} do documento original`} /> : isImage ? <img src={original.url} alt="Documento original enviado para revisão" style={{ width: `${zoom * 100}%`, maxWidth: "none" }} onError={() => setError("Não foi possível carregar a imagem original.")} /> : <pre style={{ fontSize: `${zoom}rem` }}>{text}</pre>}</div>
+    <div className="document-stage" ref={stage}>{loading && <p className="loading-line"><Busy>Lendo original…</Busy></p>}{isPdf ? <canvas ref={canvas} aria-label={`Página ${page} do documento original`} /> : isImage ? <img src={original.url} alt="Documento original enviado para revisão" style={{ width: `${zoom * 100}%`, maxWidth: "none" }} onError={() => setError("Não foi possível carregar a imagem original.")} /> : <pre style={{ fontSize: `${zoom}rem` }}>{text}</pre>}</div>
   </section>;
 }
