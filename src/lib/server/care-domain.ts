@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { isCalendarDate, scheduledOnDate, validPeriod, periodLabel, hasReviewedSchedule, validRecurrence, recurrenceLabel } from "../schedule-period";
-import type { CareAction, CareState, DraftItem, ExtractionResult, Role, TaskOccurrence } from "../contracts";
+import type { CareAction, CareSessionContext, CareState, DraftItem, ExtractionResult, Role, TaskOccurrence } from "../contracts";
 import { batchConfirmationBlocker, itemConfirmationBlockers } from "../contracts";
 
 export class CareError extends Error {
@@ -66,6 +66,8 @@ export const demoSchema = z.object({
   demoId: z.string().uuid().optional(),
 }).strict();
 
+const sessionContextSchema = z.object({ demoId: z.string().uuid(), role: z.enum(["patient", "caregiver"]) }).strict();
+
 const actionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("record_task"), taskId: id, status: z.enum(["done", "not_done"]), informedAt: z.string().datetime({ offset: true }).optional(), requestId }).strict(),
   z.object({ type: z.literal("request_help"), taskId: id.nullable().optional(), message: z.string().trim().max(2_000), urgent: z.boolean(), requestId }).strict(),
@@ -86,6 +88,18 @@ function parse<T>(schema: z.ZodType<T>, value: unknown, message: string): T {
   const result = schema.safeParse(value);
   if (!result.success) throw new CareError(message);
   return result.data;
+}
+
+export function parseSessionContext(value: unknown): CareSessionContext {
+  return parse(sessionContextSchema, value, "A sessão deste envio não foi identificada. Atualize a página e entre novamente.");
+}
+
+export function parseActionRequest(value: unknown): { context: CareSessionContext; action: CareAction } {
+  return parse(z.object({ context: sessionContextSchema, action: actionSchema }).strict(), value, "O envio não corresponde à sessão atual. Atualize a página e tente novamente.");
+}
+
+export function assertSessionContext(actual: CareSessionContext, expected?: CareSessionContext): void {
+  if (expected && (expected.demoId !== actual.demoId || expected.role !== actual.role)) throw new CareError("A sessão mudou em outra aba. Nada foi salvo. Atualize a página e entre novamente no cuidado desejado.", 409);
 }
 
 export function parseAction(value: unknown): CareAction {
