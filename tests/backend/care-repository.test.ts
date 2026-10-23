@@ -41,8 +41,17 @@ async function importOne(repository: CareRepository, token: string, extraction: 
   return repository.importDraft(token, document, extraction);
 }
 
+async function reviewMedicationPeriod(repository: CareRepository, token: string, item: DraftItem) {
+  if (item.category !== "medication" || item.schedule?.period) return;
+  await repository.mutate(token, { type: "update_item", itemId: item.id, title: item.title, instruction: item.instruction, fields: item.fields, questions: item.questions,
+    schedule: { times: item.schedule?.times ?? [], priority: item.schedule?.priority ?? "normal", toleranceMinutes: item.schedule?.toleranceMinutes ?? 0, period: { startDate: "2026-10-23", endDate: "2026-10-29" } }, requestId: req() });
+}
+
 async function activate(repository: CareRepository, token: string, state: CareState) {
-  for (const item of state.plan.items) await repository.mutate(token, { type: "confirm_item", itemId: item.id, requestId: req() });
+  for (const item of state.plan.items) {
+    await reviewMedicationPeriod(repository, token, item);
+    await repository.mutate(token, { type: "confirm_item", itemId: item.id, requestId: req() });
+  }
   await repository.mutate(token, { type: "confirm_source_pages", requestId: req() });
   return repository.mutate(token, { type: "activate_plan", requestId: req() });
 }
@@ -134,6 +143,7 @@ test("import strips AI confirmations and schedules, retains absence, and never i
   assert.equal(imported.plan.items[0].source.documentId, imported.document!.id);
   assert.equal(imported.plan.items[0].fields.duração.value, null);
   await assert.rejects(repository.mutate(caregiver.token, { type: "activate_plan", requestId: req() }), expectStatus(409));
+  await assert.rejects(repository.mutate(caregiver.token, { type: "confirm_item", itemId: imported.plan.items[0].id, requestId: req() }), /início e o término/);
   const active = await activate(repository, caregiver.token, imported);
   assert.equal(active.tasks.length, 1);
   assert.equal(active.tasks[0].time, "A combinar");
@@ -161,7 +171,7 @@ test("text confirmation keeps document and quote checks, while paged sources req
   const caregiver = await repository.startDemo({ scenario: "setup", role: "caregiver" });
   const state = await importOne(repository, caregiver.token);
   const item = state.plan.items[0];
-  const withSource = (source: Partial<DraftItem["source"]>) => ({ ...item, source: { ...item.source, ...source } });
+  const withSource = (source: Partial<DraftItem["source"]>) => ({ ...item, schedule: { times: [], priority: "normal" as const, toleranceMinutes: 0, period: { startDate: "2026-10-23", endDate: "2026-10-29" } }, source: { ...item.source, ...source } });
   assert.deepEqual(itemBlockers(withSource({ page: null }), state), []);
   assert.ok(itemBlockers(withSource({ page: null, documentId: randomUUID() }), state).length);
   assert.ok(itemBlockers(withSource({ page: null, quote: " " }), state).length);
@@ -185,6 +195,7 @@ test("ambiguity blocks confirmation and activation; edits and imports revoke rev
   state = await repository.mutate(caregiver.token, { type: "update_item", itemId, title: sourceItem.title, instruction: sourceItem.instruction, fields: { dose: { value: "1", state: "readable", sourceText: "1" } }, questions: [], requestId: req() });
   assert.equal(state.plan.items[0].confirmed, false);
   assert.equal(state.plan.sourceReviewed, false);
+  await reviewMedicationPeriod(repository, caregiver.token, state.plan.items[0]);
   await repository.mutate(caregiver.token, { type: "confirm_item", itemId, requestId: req() });
   await repository.mutate(caregiver.token, { type: "confirm_source_pages", requestId: req() });
   await assert.rejects(repository.mutate(caregiver.token, { type: "activate_plan", requestId: req() }), expectStatus(409));
@@ -276,6 +287,7 @@ test("empty/invalid-page readings remain blocked, and reimport revokes all confi
   state = await importOne(repository, caregiver.token, { items: [extractedItem({ source: { documentId: null, page: 2, quote: "Uma página inválida" } })], unresolved: [], warnings: [] });
   await assert.rejects(repository.mutate(caregiver.token, { type: "confirm_item", itemId: state.plan.items[0].id, requestId: req() }), expectStatus(409));
   state = await importOne(repository, caregiver.token);
+  await reviewMedicationPeriod(repository, caregiver.token, state.plan.items[0]);
   await repository.mutate(caregiver.token, { type: "confirm_item", itemId: state.plan.items[0].id, requestId: req() });
   await repository.mutate(caregiver.token, { type: "confirm_source_pages", requestId: req() });
   state = await repository.importDraft(caregiver.token, state.document!, { items: [extractedItem({ confirmed: true })], unresolved: [], warnings: [] });

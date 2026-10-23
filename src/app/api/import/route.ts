@@ -1,7 +1,7 @@
-import { parseSessionContext } from "@/lib/server/care-domain";
 import { extractDocument } from "@/lib/ai/extract";
 import { getSessionState, importDraft, storeDocument } from "@/lib/server/care-store";
-import { assertSameOrigin, privateHeaders } from "@/lib/server/care-http";
+import { assertSameOrigin, errorResponse, privateHeaders } from "@/lib/server/care-http";
+import { assertSessionContext, CareError, isCareError, parseSessionContext } from "@/lib/server/care-domain";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -16,15 +16,23 @@ function detectedType(bytes: Uint8Array): string | null {
 export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
+    const session = await getSessionState();
+    if (session.role !== "caregiver") return Response.json({ error: "Somente o cuidador pode preparar o plano." }, { status: 403 });
+    if (session.plan.status === "active") return Response.json({ error: "O plano já foi ativado. Inicie outro acompanhamento para preparar um plano." }, { status: 409 });
     const length = Number(request.headers.get("content-length") || 0);
     if (length > 11 * 1024 * 1024) return Response.json({ error: "Use um arquivo de até 10 MB." }, { status: 413 });
-    const form = await request.formData();
+    const contentType = request.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
+    if (contentType !== "multipart/form-data" && contentType !== "application/x-www-form-urlencoded") throw new CareError("Envie as orientações em um formulário com arquivo ou texto.", 415);
+    let form: FormData;
+    try {
+      form = await request.formData();
+    } catch {
+      throw new CareError("O formulário enviado é inválido. Confira o arquivo ou texto e envie novamente.");
+    }
     let contextInput: unknown;
     try { contextInput = JSON.parse(String(form.get("context"))); } catch { contextInput = null; }
     const context = parseSessionContext(contextInput);
-    const session = await getSessionState(context);
-    if (session.role !== "caregiver") return Response.json({ error: "Somente o cuidador pode preparar o plano." }, { status: 403 });
-    if (session.plan.status === "active") return Response.json({ error: "O plano já foi ativado. Inicie outro acompanhamento para preparar um plano." }, { status: 409 });
+    assertSessionContext({ demoId: session.demoId, role: session.role }, context);
     const file = form.get("file");
     const text = String(form.get("text") ?? "").trim();
     let bytes: Uint8Array;
@@ -47,11 +55,7 @@ export async function POST(request: Request) {
     const document = await storeDocument({ name: filename, mimeType, bytes }, context);
     return Response.json(await importDraft(document, extraction, context), { headers: privateHeaders });
   } catch (error) {
-    const status = typeof error === "object" && error && "status" in error ? Number(error.status) : 502;
-    if (status === 400 || status === 409) return Response.json({ error: error instanceof Error ? error.message : "A sessão mudou. Atualize a página e entre novamente." }, { status, headers: privateHeaders });
-    if ([401, 403].includes(status)) {
-      return Response.json({ error: status === 401 ? "Entre novamente." : status === 403 ? "Você não tem permissão para importar." : "O plano mudou durante a leitura. Atualize a página." }, { status });
-    }
+    if (isCareError(error)) return errorResponse(error);
     return Response.json({ error: "Não foi possível ler este documento. Tente novamente, envie uma imagem mais legível ou cadastre as orientações manualmente." }, { status: 502 });
   }
 }
