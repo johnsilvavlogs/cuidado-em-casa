@@ -7,19 +7,19 @@ Resumo do [PRD](prd.md) e das decisões posteriores, atualizado em 23 de outubro
 - Foco exclusivo em mobile. As verificações atuais usam 320 e 390 px; desktop não é critério desta entrega.
 - Os perfis de Helena e Marina compartilham a mesma rotina de demonstração. Cadastro e login locais de cuidador existem, mas convites entre contas ficam fora deste recorte.
 - Avisos ficam compactos; detalhes aparecem ao abrir. A interface cotidiana dispensa rótulos repetidos de demonstração, mantendo essa informação na entrada e documentação.
-- O sono oferece faixas rápidas e duração exata opcional. Uma faixa nunca vira um número exato de minutos.
+- O formulário de sono oferece três faixas rápidas. Uma faixa nunca vira um número exato de minutos; relatos precisos já registrados são preservados.
 - A revisão individual usa uma ação para salvar, confirmar e voltar à lista. A conferência geral confirma os itens elegíveis ou mostra os cuidados que ainda exigem atenção.
 - A voz apresenta um cuidado relevante por vez. Uma intenção de registro gera confirmação visível; apenas o aceite da pessoa grava o resultado.
 
 ## Resultado esperado
 
-Uma pessoa cuidada e um único cuidador consultam o mesmo plano confirmado e compartilham registros e pedidos de ajuda. A demonstração é uma web app interativa em celular e desktop, com dados sintéticos e conexão para salvar.
+Uma pessoa cuidada e um único cuidador consultam o mesmo plano confirmado e compartilham registros e pedidos de ajuda. A demonstração local usa uma interface mobile, dados sintéticos e conexão para salvar. Os links das duas visões devem conter o mesmo identificador de cenário.
 
 ## Jornada principal
 
 ```mermaid
 flowchart TD
-  A[Entrar e aceitar o vínculo] --> B[Importar PDF, foto ou texto legível]
+  A[Abrir o cenário compartilhado como cuidador] --> B[Importar PDF, foto ou texto legível]
   B --> C[Revisar cada cuidado com a página original]
   C --> D{Todos os itens confirmados e sem pendências?}
   D -->|Não| C
@@ -45,7 +45,7 @@ flowchart TD
 | Participantes | Uma pessoa cuidada e um cuidador; escolher papel não concede acesso |
 | Documento | Texto impresso legível em PDF/foto ou texto colado; alternativa manual quando a leitura falhar |
 | Fonte | Página original com zoom e trecho transcrito; destaque aproximado opcional |
-| Conferência | Nenhum item confirmado pela IA; correção não equivale a confirmação |
+| Conferência | Nenhum item confirmado pela IA; a ação humana Confirmar cuidado salva as correções e confirma o item |
 | Plano | Ativação uma vez; edição e versionamento do plano ativo ficam para depois |
 | Registros | Compartilhados online; confirmar a gravação, mostrar erro e permitir nova tentativa sem duplicar |
 | Voz | GPT-Live + Decisions; mesmas regras e ações dos botões |
@@ -63,6 +63,10 @@ flowchart TD
 - Permitir os mesmos resultados por botões e voz; a voz só anuncia sucesso após o servidor confirmar.
 - Não tratar relato opcional ausente como zero nem gerar alerta por não preenchê-lo.
 - Uma ligação aberta ou um pedido gravado não comprova contato ou socorro a caminho.
+
+## Aceite visual vigente
+
+As referências do tldraw orientam cores, hierarquia e legibilidade. As instruções posteriores de redesenhar a interface, torná-la própria e simplificar os fluxos substituem a reprodução da geometria antiga. O aceite atual verifica as duas larguras mobile, as ações reais e os estados de erro e recuperação. Os recibos antigos de paridade estrita permanecem incompletos como histórico; não são apresentados como prova de equivalência pixel a pixel.
 
 ## Referências
 
