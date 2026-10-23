@@ -222,3 +222,18 @@ body{background:#fcfdf9}.brand{font-size:21px;gap:7px;letter-spacing:-.6px}.bran
 @media(min-width:721px){
  .review-main-form .review-form .field-group{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);height:auto;min-height:132px;align-content:start;justify-content:normal;gap:8px;padding:12px}
 }
+.attention-card.is-clear{background:#f3f8f2;border-color:#dce8d9}
+.attention-card.is-clear h2{color:var(--green)}
+.caregiver-help-empty{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:#fff}
+.caregiver-help-empty>div{display:flex;align-items:center;gap:9px;font-size:14px;color:var(--muted)}
+.caregiver-help-empty .text-button{white-space:nowrap;font-size:13px}
+@media(max-width:720px){
+ .caregiver-view .daily-heading>h1{line-height:36px}
+ .wellbeing-card>.full-width{height:36px;min-height:36px;margin-top:6px;margin-bottom:0;position:relative}
+ .wellbeing-card>.full-width::after{content:"";position:absolute;inset:-4px 0}
+}
+@media(max-width:360px){.caregiver-help-empty{align-items:flex-start;flex-direction:column;gap:0}.caregiver-help-empty .text-button{align-self:flex-end;margin-top:-3px}}
+.medication-dates-note{padding:14px;gap:10px}
+.medication-dates-note strong{font-size:16px;line-height:22px}
+.medication-dates-note p{font-size:15px;line-height:21px;margin-top:4px}
+.medication-dates-note .text-button{font-size:14px;padding:4px 0}

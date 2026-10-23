@@ -83,7 +83,7 @@ for (const display of displays) {
     try {
       const pending = initial.tasks.find((task) => task.status === "pending")!;
       const before = await readState(caregiver);
-      await page.locator('[data-parity-anchor="next-care"]').getByRole("button", { name: "Registrar como feito", exact: true }).click();
+      await page.locator('[data-parity-anchor="next-care"]').getByRole("button", { name: "Já fiz", exact: true }).click();
       await expect(page.getByRole("alert").filter({ hasText: "Falha de gravação controlada" })).toBeVisible();
       expect(requests).toHaveLength(1);
       const failed = await readState(caregiver);
@@ -129,7 +129,7 @@ for (const display of displays) {
     await keyboardReach(page, today);
     await page.keyboard.press("Enter");
     await expect(page.getByRole("button", { name: "Falar com assistente", exact: true })).toBeVisible();
-    const source = page.locator('[data-parity-anchor="next-care"]').getByRole("button", { name: "Ver orientação do plano", exact: true });
+    const source = page.locator('[data-parity-anchor="next-care"]').getByRole("button", { name: "Ver orientação", exact: true });
     await keyboardReach(page, source);
     await page.keyboard.press("Enter");
     await expect(page.getByRole("dialog")).toBeVisible();

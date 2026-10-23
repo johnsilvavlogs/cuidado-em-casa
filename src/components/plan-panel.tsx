@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { ArrowRightIcon, CheckCircleIcon, CheckIcon, CircleIcon, FileArrowUpIcon, FileTextIcon, PencilSimpleIcon, PlusIcon, ShieldCheckIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { ArrowRightIcon, CaretDownIcon, CheckCircleIcon, CheckIcon, CircleIcon, FileArrowUpIcon, FileTextIcon, PencilSimpleIcon, PlusIcon, ShieldCheckIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import type { CareState, DraftItem, CareField, SchedulePeriod } from "@/lib/contracts";
 import { batchConfirmationBlocker } from "@/lib/contracts";
 import { periodLabel, validPeriod } from "@/lib/schedule-period";
 import DocumentViewer from "./document-viewer";
+import ManualCareDialog from "./manual-care-dialog";
 import { Brand, Busy, careText, categoryLabels, EmptyState, fieldLabels, Modal, Portrait, readingLabels, type RunAction } from "./care-ui";
 
 type Props = { state: CareState; run: RunAction; busy: boolean; onImport: (data: FormData) => Promise<boolean> };
@@ -27,7 +28,24 @@ export default function PlanPanel({ state, run, busy, onImport }: Props) {
   const periodsPending = state.plan.items.filter((item) => item.category === "medication" && !validPeriod(item.schedule?.period));
   const canActivate = state.plan.items.length > 0 && confirmed === state.plan.items.length && unresolvedCount === 0 && periodsPending.length === 0 && state.plan.sourceReviewed;
   const visibleWarnings = state.plan.warnings.map((warning) => confirmed === 0 ? warning : warning.replace(/(?:[;:]\s*)?\bnenhum (?:item|campo)(?:\s*(?:\/|ou|e)\s*(?:item|campo))?\s+(?:(?:est[aá]|foi)\s+)?confirmad[oa]s?\.?/gi, "").trim()).filter(Boolean);
+  const isReadingNote = (warning: string) => /^(?:rascunho para revisão humana|transcrição baseada no texto extraído|transcrição em rascunho:)/i.test(warning) && !/(?:ilegível|ambígu|manuscrit|dúvida)/i.test(warning);
+  const readingNotes = visibleWarnings.filter(isReadingNote);
+  const actionWarnings = visibleWarnings.filter(warning => !isReadingNote(warning));
   const batchItems = state.plan.items.filter(item => !item.confirmed && !batchConfirmationBlocker(item, state.document));
+  const unconfirmedCount = state.plan.items.length - confirmed;
+  const individualReviewCount = unconfirmedCount - batchItems.length;
+  const nextReviewItem = state.plan.items.find(item => !item.confirmed);
+  const activationNote = !state.plan.sourceReviewed
+    ? "Revise todas as páginas e confirme a conferência da fonte."
+    : state.plan.unresolved.length > 0
+      ? "Esclareça as dúvidas gerais antes de continuar."
+      : individualReviewCount > 0
+        ? `${individualReviewCount} ${individualReviewCount === 1 ? "cuidado precisa" : "cuidados precisam"} de revisão individual.`
+        : periodsPending.length > 0
+          ? "Confira o período dos medicamentos antes de ativar."
+          : unconfirmedCount > 0
+            ? "Confirme os cuidados que você conferiu com a fonte."
+            : "O plano fica fixo depois da ativação.";
 
   async function importDocument(event: FormEvent) {
     event.preventDefault();
@@ -46,13 +64,8 @@ export default function PlanPanel({ state, run, busy, onImport }: Props) {
     try { if (await onImport(data)) { setPasted(""); setFile(null); } } finally { setImporting(false); }
   }
 
-  return <div className="stack" data-parity-screen="plan">
-    <div className="section-heading"><div><p className="eyebrow">{isActive ? "Orientações conferidas" : "Preparação do cuidado"}</p><h2>{isActive ? "Plano de cuidado" : "Do documento à rotina"}</h2></div><span className={`badge ${isActive ? "badge-green" : "badge-amber"}`}>{isActive ? "Plano ativo" : "Rascunho"}</span></div>
-    {!isActive && isCaregiver && <ol className="steps" aria-label="Etapas do plano"><li className={state.plan.items.length ? "completed" : "current"}><span>1</span>Enviar</li><li className={state.plan.items.length ? "current" : ""}><span>2</span>Conferir</li><li className={canActivate ? "current" : ""}><span>3</span>Ativar</li></ol>}
-    {!isActive && !isCaregiver && <div className="notice"><ShieldCheckIcon size={25} /><div><strong>Seu cuidador está preparando o plano</strong><p>As orientações aparecem aqui depois da conferência e da ativação.</p></div></div>}
-    {!isActive && isCaregiver && <section className="card import-card"><div className="card-heading"><span className="icon-disc"><FileArrowUpIcon size={26} /></span><div><h3>{state.plan.items.length ? "Trocar a fonte do rascunho" : "Importar orientações"}</h3><p className="muted">PDF, foto legível ou texto. Confira a leitura antes de ativar.</p></div></div>
-      {state.plan.items.length > 0 && <p className="small-note">Uma nova leitura substitui o rascunho e reinicia as confirmações.</p>}
-      <form onSubmit={importDocument} className="stack-sm">
+  const importControls = <>
+    <form onSubmit={importDocument} className="stack-sm">
         <div className="segmented" aria-label="Tipo de entrada"><button type="button" className={inputMode === "file" ? "selected" : ""} onClick={() => setInputMode("file")} aria-pressed={inputMode === "file"}>PDF ou foto</button><button type="button" className={inputMode === "text" ? "selected" : ""} onClick={() => setInputMode("text")} aria-pressed={inputMode === "text"}>Colar texto</button></div>
         {inputMode === "file" ? <label className="upload-zone"><FileArrowUpIcon size={32} /><strong>{file?.name ?? "Escolher PDF ou foto"}</strong><span>Documento impresso e legível · até 10 MB</span><input type="file" accept="application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0] ?? null)} disabled={importing} /></label> : <label>Orientações recebidas<textarea value={pasted} onChange={(event) => setPasted(event.target.value)} placeholder="Cole o texto exatamente como foi recebido…" rows={6} disabled={importing} /></label>}
         {uploadError && <p className="error-message" role="alert">{uploadError}</p>}
@@ -60,25 +73,41 @@ export default function PlanPanel({ state, run, busy, onImport }: Props) {
       </form>
       {importing && <p className="small-note" role="status">A leitura pode levar alguns instantes. Esta etapa ainda não ativa o plano.</p>}
       <button className="text-button" onClick={() => setAdding(true)} disabled={busy || importing}><PlusIcon size={18} />Cadastrar um cuidado manualmente</button>
-    </section>}
+  </>;
+
+  return <div className="stack" data-parity-screen="plan">
+    <div className="section-heading"><div><p className="eyebrow">{isActive ? "Orientações conferidas" : "Preparação do cuidado"}</p><h2>{isActive ? "Plano de cuidado" : "Do documento à rotina"}</h2></div><span className={`badge ${isActive ? "badge-green" : "badge-amber"}`}>{isActive ? "Plano ativo" : "Rascunho"}</span></div>
+    {!isActive && isCaregiver && <ol className="steps" aria-label="Etapas do plano"><li className={state.plan.items.length ? "completed" : "current"}><span>1</span>Enviar</li><li className={state.plan.items.length ? "current" : ""}><span>2</span>Conferir</li><li className={canActivate ? "current" : ""}><span>3</span>Ativar</li></ol>}
+    {!isActive && !isCaregiver && <div className="notice"><ShieldCheckIcon size={25} /><div><strong>Seu cuidador está preparando o plano</strong><p>As orientações aparecem aqui depois da conferência e da ativação.</p></div></div>}
+    {!isActive && isCaregiver && (state.document ? <details className="card" key={state.document.id} data-plan-source="replace">
+      <summary className="source-link" style={{ minHeight: 44 }}><span className="icon-disc"><FileArrowUpIcon size={25} /></span><span><strong>Trocar a fonte</strong><small>PDF, foto legível ou texto</small></span><CaretDownIcon size={22} /></summary>
+      <div className="stack-sm" style={{ marginTop: 20 }}><p className="small-note">Uma nova leitura substitui o rascunho e reinicia as confirmações.</p>{importControls}</div>
+    </details> : <section className="card import-card" data-plan-source="initial"><div className="card-heading"><span className="icon-disc"><FileArrowUpIcon size={26} /></span><div><h3>Importar orientações</h3><p className="muted">PDF, foto legível ou texto. Confira a leitura antes de ativar.</p></div></div>{importControls}</section>)}
     {state.document && <button className="card source-link" onClick={() => setOriginal(true)}><span className="icon-disc"><FileTextIcon size={25} /></span><span><strong>{state.document.name}</strong><small>Documento original{state.document.pageCount ? ` · ${state.document.pageCount} página(s)` : ""}</small></span><ArrowRightIcon size={22} /></button>}
     {isActive && periodsPending.length > 0 && <div className="notice" role="status"><WarningCircleIcon size={23} /><div><strong>Período do medicamento a conferir</strong><p>As tarefas de {periodsPending.map((item) => item.title).join(", ")} estão suspensas até o cuidador conferir as datas no Plano. A orientação e os registros anteriores foram preservados.</p></div></div>}
-    {visibleWarnings.length > 0 && <div className="notice"><WarningCircleIcon size={23} /><div><strong>Atenção ao revisar</strong>{visibleWarnings.map((warning, i) => <p key={i}>{warning}</p>)}</div></div>}
+    {actionWarnings.length > 0 && <div className="notice"><WarningCircleIcon size={23} /><div><strong>Atenção ao revisar</strong>{actionWarnings.map((warning, i) => <p key={i}>{warning}</p>)}</div></div>}
     {state.plan.unresolved.length > 0 && <section className="card attention-card"><h3><WarningCircleIcon size={23} />Dúvidas a esclarecer</h3><p>Confirme com a fonte ou com o profissional responsável. Não complete por suposição.</p>{state.plan.unresolved.map((question, i) => <div className="uncertainty-row" key={`${i}-${question}`}><span>{question}</span>{isCaregiver && !isActive && <button className="button secondary compact" onClick={() => setUncertainty(i)}>Esclarecer</button>}</div>)}</section>}
-    {!isActive && isCaregiver && state.plan.items.length > 0 && <button className={`source-confirm card ${state.plan.sourceReviewed ? "checked" : ""}`} onClick={() => void run({ type: "confirm_source_pages" }, "Conferência de todas as páginas registrada.")} disabled={busy || state.plan.sourceReviewed}>{state.plan.sourceReviewed ? <CheckCircleIcon size={24} /> : <CircleIcon size={24} />}<span>Revisei todas as páginas e incluí as orientações que faltavam.</span></button>}
+    {!isActive && isCaregiver && state.plan.items.length > 0 && <section className="card activation-card stack-sm" data-plan-review="quick" aria-label="Conferência e ativação do plano">
+      <div className="section-heading small"><h3>Conferir e ativar</h3><span className="muted">{confirmed}/{state.plan.items.length} conferidos</span></div>
+      <button className={`source-confirm ${state.plan.sourceReviewed ? "checked" : ""}`} style={{ margin: 0 }} onClick={() => void run({ type: "confirm_source_pages" }, "Conferência de todas as páginas registrada.")} disabled={busy || state.plan.sourceReviewed}>{state.plan.sourceReviewed ? <CheckCircleIcon size={24} /> : <CircleIcon size={24} />}<span>Revisei todas as páginas e incluí as orientações que faltavam.</span></button>
+      {state.plan.unresolved.length > 0 ? <button type="button" className="button primary" data-plan-action="resolve-uncertainty" disabled={busy} onClick={() => setUncertainty(0)}><WarningCircleIcon size={21} />Esclarecer dúvida</button>
+        : batchItems.length > 0 ? <button type="button" className="button primary" data-plan-action="confirm-items" disabled={busy || !state.plan.sourceReviewed} onClick={() => void run({ type: "confirm_items", itemIds: batchItems.map(item => item.id) }, `${batchItems.length} ${batchItems.length === 1 ? "cuidado confirmado" : "cuidados confirmados"} com a fonte.`)}><CheckCircleIcon size={21} />Confirmar {batchItems.length} {batchItems.length === 1 ? "item conferido" : "itens conferidos"}</button>
+        : periodsPending.length > 0 ? <button type="button" className="button primary" data-plan-action="review-period" disabled={busy} onClick={() => setReview(periodsPending[0])}><PencilSimpleIcon size={21} />Conferir período</button>
+        : nextReviewItem ? <button type="button" className="button primary" data-plan-action="review-item" disabled={busy} onClick={() => setReview(nextReviewItem)}><PencilSimpleIcon size={21} />Revisar cuidado pendente</button>
+        : !state.plan.sourceReviewed ? <button type="button" className="button primary" data-plan-action="review-source" disabled={busy} onClick={() => setOriginal(true)}><FileTextIcon size={21} />Conferir documento original</button>
+        : <button type="button" className="button primary" data-plan-action="activate" disabled={!canActivate || busy} onClick={() => void run({ type: "activate_plan" }, "Plano ativado e disponível nas duas visões.")}><CheckCircleIcon size={21} />Ativar plano</button>}
+      <p className="small-note" role="status">{activationNote}{batchItems.length > 0 && individualReviewCount > 0 ? " Os itens com dúvidas continuam pendentes." : ""}</p>
+      {unresolvedCount > 0 && <p className="small-note">{unresolvedCount} {unresolvedCount === 1 ? "dúvida pendente" : "dúvidas pendentes"}. A ativação só fica disponível depois da conferência completa.</p>}
+    </section>}
+    {readingNotes.length > 0 && <details className="card" data-plan-reading-notes="true"><summary className="source-link" style={{ minHeight: 44 }}><strong>Observações da leitura</strong><CaretDownIcon size={20} /></summary><div className="stack-sm" style={{ marginTop: 14 }}>{readingNotes.map((note, index) => <p className="small-note" key={index}>{note}</p>)}</div></details>}
     {state.plan.items.length > 0 ? <section className="stack-sm"><div className="section-heading small"><h3>{isActive ? `${state.plan.items.length} cuidados no plano` : "Confira cada cuidado"}</h3>{!isActive && <span className="muted">{confirmed} de {state.plan.items.length} confirmados</span>}</div>
-      {!isActive && isCaregiver && batchItems.length > 0 && <div className="card stack-sm"><button type="button" className="button primary" disabled={busy || !state.plan.sourceReviewed || state.plan.unresolved.length > 0} onClick={() => void run({ type: "confirm_items", itemIds: batchItems.map(item => item.id) }, `${batchItems.length} ${batchItems.length === 1 ? "cuidado confirmado" : "cuidados confirmados"} com a fonte.`)}><CheckCircleIcon size={21} />Confirmar {batchItems.length} {batchItems.length === 1 ? "item conferido" : "itens conferidos"}</button><p className="small-note">Os itens com dúvidas continuam pendentes.{!state.plan.sourceReviewed ? " Revise todas as páginas e marque a conferência acima para continuar." : state.plan.unresolved.length > 0 ? " Esclareça as pendências gerais antes de confirmar em lote." : ""}</p></div>}
       {state.plan.items.map((item) => <button className={`card plan-item ${item.confirmed ? "confirmed" : ""}`} key={item.id} onClick={() => setReview(item)}><div className="plan-item-top"><span className="eyebrow">{categoryLabels[item.category]}</span><span className={`badge ${item.confirmed ? "badge-green" : "badge-amber"}`}>{item.confirmed ? <CheckCircleIcon size={15} /> : <CircleIcon size={15} />}{item.confirmed ? "Conferido" : "A conferir"}</span></div><h3>{careText(item.title)}</h3><p>{careText(item.instruction)}</p>{item.schedule?.period && validPeriod(item.schedule.period) && <p className="small-note">Período: {periodLabel(item.schedule.period)}</p>}{item.category === "medication" && !validPeriod(item.schedule?.period) && <p className="warning-text">Período a conferir</p>}{item.questions.length > 0 && <p className="warning-text"><WarningCircleIcon size={17} />{item.questions.length} dúvida(s) neste cuidado</p>}<span className="item-action">{isActive ? "Ver orientação e fonte" : "Revisar com a fonte"}<ArrowRightIcon size={18} /></span></button>)}
       {!isActive && isCaregiver && <button className="button secondary" onClick={() => setAdding(true)}><PlusIcon size={20} />Adicionar orientação que faltou</button>}
     </section> : !isCaregiver && <EmptyState icon={<FileTextIcon size={30} />} title="Ainda não há um plano ativo">Você e seu cuidador verão as mesmas orientações aprovadas.</EmptyState>}
-    {!isActive && isCaregiver && state.plan.items.length > 0 && <section className="card activation-card"><div className="card-heading"><span className="icon-disc"><ShieldCheckIcon size={26} /></span><div><h3>Pronto para compartilhar?</h3><p className="muted">O plano fica fixo depois da ativação.</p></div></div>
-      <div className="activation-status"><span>{confirmed}/{state.plan.items.length} cuidados confirmados</span><span>{unresolvedCount ? `${unresolvedCount} dúvida(s) pendente(s)` : "Nenhuma dúvida pendente"}</span></div>
-      <button className="button primary" disabled={!canActivate || busy} onClick={() => void run({ type: "activate_plan" }, "Plano ativado e disponível nas duas visões.")}><CheckCircleIcon size={21} />Ativar plano</button>{!canActivate && <p className="small-note">Confira cada cuidado, esclareça as dúvidas e revise todas as páginas para ativar.</p>}
-    </section>}
     {isActive && <p className="small-note"><ShieldCheckIcon size={17} />Plano conferido pelo cuidador. Os registros de rotina não alteram as orientações.</p>}
     {original && <Modal title="Documento original" subtitle="Confira todas as páginas e use o zoom para ler." wide onClose={() => setOriginal(false)}><DocumentViewer document={state.document} /></Modal>}
     {review && <ReviewDialog key={review.id + state.plan.status} item={review} state={state} busy={busy} run={run} onClose={() => setReview(null)} />}
-    {adding && <AddCareDialog state={state} busy={busy} run={run} onClose={() => setAdding(false)} />}
+    {adding && <ManualCareDialog state={state} busy={busy} run={run} onClose={() => setAdding(false)} />}
     {uncertainty !== null && <UncertaintyDialog question={state.plan.unresolved[uncertainty]} index={uncertainty} run={run} busy={busy} onClose={() => setUncertainty(null)} />}
   </div>;
 }
@@ -144,14 +173,6 @@ function ReviewDialog({ item, state, busy, run, onClose }: { item: DraftItem; st
 
 }
 
-function AddCareDialog({ state, busy, run, onClose }: { state: CareState; busy: boolean; run: RunAction; onClose: () => void }) {
-  const [title, setTitle] = useState(""); const [instruction, setInstruction] = useState(""); const [category, setCategory] = useState<DraftItem["category"]>("other"); const [quote, setQuote] = useState(""); const [page, setPage] = useState("1");
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (await run({ type: "add_item", item: { id: crypto.randomUUID(), title, instruction, category, fields: {}, questions: [], confirmed: false, source: { documentId: state.document?.id ?? null, page: state.document ? Number(page) : null, quote: quote || instruction } } }, "Cuidado adicionado ao rascunho. Revise antes de confirmar.")) onClose();
-  }
-  return <Modal title="Adicionar um cuidado" subtitle="Transcreva a orientação recebida sem completar o que não consta." onClose={onClose}><form onSubmit={submit} className="stack"><label>Categoria<select value={category} onChange={(event) => setCategory(event.target.value as DraftItem["category"])}>{Object.entries(categoryLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Nome<input value={title} onChange={(event) => setTitle(event.target.value)} required /></label><label>Orientação completa<textarea rows={4} value={instruction} onChange={(event) => setInstruction(event.target.value)} required /></label><label>Trecho da fonte<textarea rows={3} value={quote} onChange={(event) => setQuote(event.target.value)} placeholder="Copie o trecho ou informe a origem da orientação." required /></label>{state.document && <label>Página<input type="number" min="1" value={page} onChange={(event) => setPage(event.target.value)} required /></label>}<button className="button primary" disabled={busy}><PlusIcon size={20} />Adicionar ao rascunho</button></form></Modal>;
-}
 function UncertaintyDialog({ question, index, run, busy, onClose }: { question: string; index: number; run: RunAction; busy: boolean; onClose: () => void }) {
   const [explanation, setExplanation] = useState("");
   return <Modal title="Esclarecer dúvida" subtitle={question} onClose={onClose}><form className="stack" onSubmit={async (event) => { event.preventDefault(); if (await run({ type: "resolve_uncertainty", index, explanation }, "Esclarecimento registrado. Confira os cuidados relacionados.")) onClose(); }}><div className="notice"><WarningCircleIcon size={24} /><p>Se a fonte não permite responder, mantenha a dúvida e consulte o profissional responsável.</p></div><label>O que foi esclarecido e qual foi a fonte?<textarea rows={5} value={explanation} onChange={(event) => setExplanation(event.target.value)} minLength={8} required /></label><button className="button primary" disabled={busy}><CheckIcon size={20} />Registrar esclarecimento</button></form></Modal>;

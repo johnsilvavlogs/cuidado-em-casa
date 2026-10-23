@@ -177,10 +177,10 @@ function nativeDecision(sourceId: string, triggerId: string, taskId: string, act
   };
 }
 
-async function confirmVoice(page: Page, manualReady?: () => Promise<void>) {
+async function confirmVoice(page: Page, manualReady?: () => Promise<void>, buttonName = "Confirmar registro") {
   const response = page.waitForResponse((candidate) => candidate.url().endsWith("/api/actions") && candidate.request().method() === "POST", { timeout: manualReady ? 90_000 : 12_000 });
   if (manualReady) await manualReady();
-  else await page.getByRole("button", { name: "Confirmar registro", exact: true }).click();
+  else await page.getByRole("button", { name: buttonName, exact: true }).click();
   expect((await response).status()).toBe(200);
   await expect(page.locator(".voice-panel .sr-only[role=status]")).toHaveText("Registro salvo e compartilhado com seu cuidador.");
   await expect(page.locator('.voice-panel[data-voice-state="saved"]')).toBeVisible();
@@ -190,6 +190,58 @@ async function confirmVoice(page: Page, manualReady?: () => Promise<void>) {
     return live.destination.stream.getAudioTracks().some((track) => track.enabled);
   })).toBe(false);
   await expect(page.getByRole("button", { name: "Confirmar registro", exact: true })).toHaveCount(0);
+}
+
+async function recoverLostSaveResponse(page: Page, caregiver: BrowserContext, task: CareState["tasks"][number], options: { manual?: boolean; runId?: string; caseId?: string } = {}) {
+  const before = await readState(caregiver);
+  const requests: unknown[] = [];
+  let committedStatus = 0;
+  let announceCommit!: () => void;
+  const committed = new Promise<void>((resolve) => { announceCommit = resolve; });
+  let releaseResponse!: () => void;
+  const release = new Promise<void>((resolve) => { releaseResponse = resolve; });
+  const pattern = "**/api/actions";
+  await page.route(pattern, async (route) => {
+    requests.push(route.request().postDataJSON());
+    if (requests.length > 1) return route.continue();
+    const response = await route.fetch(); // The actual backend commits before its response is lost.
+    committedStatus = response.status();
+    announceCommit();
+    await release;
+    await route.abort("failed");
+  });
+  const signal = async (status: string, button: string) => {
+    await writeFile(resolve(reportDirectory, "manual-ready.json"), JSON.stringify({ status, runId: options.runId, createdAt: new Date().toISOString(), caseId: options.caseId, taskId: task.id, taskTitle: task.title, taskTime: task.time, browser: "Google Chrome for Testing", appPID: null, runnerPID: process.pid, viewport: { width: 390, height: 844 }, url: page.url(), action: `Root must click ${button} through native Computer Use. The test does not click in manual mode.` }, null, 2) + "\n");
+    console.log("MANUAL_SAVE_RECOVERY", status, options.runId);
+  };
+  try {
+    if (options.manual) await signal("ready", "Confirmar registro");
+    else await page.getByRole("button", { name: "Confirmar registro", exact: true }).click();
+    await committed;
+    expect(committedStatus).toBe(200);
+    await expect(page.locator(".voice-status")).toHaveText("Salvando…");
+    await expect(page.locator(".voice-panel")).toHaveAttribute("aria-busy", "true");
+    await page.screenshot({ path: resolve(reportDirectory, "recovery-saving.png"), scale: "css", animations: "disabled" });
+    releaseResponse();
+    await expect(page.getByRole("button", { name: "Tentar salvar de novo", exact: true })).toBeVisible();
+    await expect(page.getByRole("alert")).toHaveText("Não recebi a confirmação. Tente salvar de novo.");
+    await expect(page.locator('.voice-panel[data-voice-state="confirming"] .voice-record')).toContainText(task.title);
+    await expect(page.locator(".voice-panel .sr-only[role=status]")).toHaveCount(0);
+    const afterLostResponse = await readState(caregiver);
+    expect(afterLostResponse.tasks.find((entry) => entry.id === task.id)?.status).toBe("done");
+    expect(afterLostResponse.timeline.length).toBe(before.timeline.length + 1);
+    await page.screenshot({ path: resolve(reportDirectory, "recovery-failed.png"), scale: "css", animations: "disabled" });
+    await page.waitForTimeout(1200); // A lost response must not trigger any automatic retry.
+    expect(requests).toHaveLength(1);
+    await confirmVoice(page, options.manual ? () => signal("retry-ready", "Tentar salvar de novo") : undefined, "Tentar salvar de novo");
+    expect(requests).toHaveLength(2);
+    expect(requests[1]).toEqual(requests[0]);
+    const final = await readState(caregiver);
+    expect(final.tasks.find((entry) => entry.id === task.id)?.status).toBe("done");
+    expect(final.timeline.length).toBe(before.timeline.length + 1);
+    await page.screenshot({ path: resolve(reportDirectory, "recovery-saved.png"), scale: "css", animations: "disabled" });
+    return { firstResponseStatus: committedStatus, backendCommittedBeforeResponseLoss: true, localizedNetworkError: true, proposalPreserved: true, noAutomaticRetry: true, identicalRequestBodyAndId: true, durableEventsAdded: final.timeline.length - before.timeline.length, requests };
+  } finally { releaseResponse(); await page.unroute(pattern); }
 }
 
 type InstructionSnapshot = { content: string; tasks: { cuidado: string; hora: string; status: string }[] };
@@ -374,9 +426,9 @@ test(`${display.id}-03-denied-microphone-keeps-manual-buttons-working`, async ({
     const title = await primary.locator("h2").innerText();
     const before = await readState(caregiver);
     const next = before.tasks.find((task) => task.status === "pending")!;
-    await expect(primary.getByRole("button", { name: "Registrar como feito", exact: true })).toBeEnabled();
+    await expect(primary.getByRole("button", { name: "Já fiz", exact: true })).toBeEnabled();
     const saved = page.waitForResponse((response) => response.url().endsWith("/api/actions") && response.request().method() === "POST");
-    await primary.getByRole("button", { name: "Registrar como feito", exact: true }).click();
+    await primary.getByRole("button", { name: "Já fiz", exact: true }).click();
     expect((await saved).status()).toBe(200);
     const final = await readState(caregiver);
     expect(final.tasks.find((task) => task.id === next.id)?.status).toBe("done");
@@ -449,6 +501,22 @@ test(`${display.id}-04-native-transcript-trigger-ordering-and-correlation`, asyn
   } finally { await caregiver.close(); }
 });
 
+
+test(`${display.id}-05-lost-save-response-retries-without-duplicate`, async ({ page, browser }, testInfo) => {
+  await installSimulatedTransport(page);
+  const initial = await startCase(page);
+  const caregiver = await caregiverFor(browser, initial);
+  const item = initial.plan.items.find((entry) => entry.category === "activity")!;
+  const task = initial.tasks.find((entry) => entry.itemId === item.id)!;
+  try {
+    await openVoice(page, display);
+    await emit(page, decision("medication_done", task.id));
+    await expect(page.getByRole("button", { name: "Confirmar registro", exact: true })).toBeVisible();
+    const recovery = await recoverLostSaveResponse(page, caregiver, task);
+    await receipt(testInfo, { result: "passed", caseId: initial.demoId, assertions: recovery });
+  } finally { await caregiver.close(); }
+});
+
 });
 }
 
@@ -457,7 +525,8 @@ test(`${display.id}-04-native-transcript-trigger-ordering-and-correlation`, asyn
 test("real-live-webrtc-continuous-request-then-confirmed-walk", async ({ page, browser }) => {
   test.skip(process.env.CARE_E2E_LIVE !== "1", "Set CARE_E2E_LIVE=1 to use the authorized real Live API.");
   const manualAcceptance = process.env.CARE_E2E_MANUAL_ACCEPT === "1";
-  test.setTimeout(manualAcceptance ? 180_000 : 120_000);
+  const recoverLostResponse = process.env.CARE_E2E_LOST_RESPONSE === "1";
+  test.setTimeout(manualAcceptance ? (recoverLostResponse ? 240_000 : 180_000) : 120_000);
   await page.setViewportSize({ width: 390, height: 844 });
   await mkdir(reportDirectory, { recursive: true });
   const audioDirectory = process.env.CARE_E2E_AUDIO_DIR || "/private/tmp/cuidado-live-audio";
@@ -504,6 +573,7 @@ test("real-live-webrtc-continuous-request-then-confirmed-walk", async ({ page, b
   const manualRunId = randomUUID();
   let passed = false;
   let questionResponse = "";
+  let recoveryEvidence: unknown = null;
   try {
     for (const task of initial.tasks.filter((entry) => entry.id !== walk.id)) {
       const seeded = await page.request.post("/api/actions", { data: { type: "record_task", taskId: task.id, status: "done", requestId: randomUUID() }, headers: { Origin: base } });
@@ -543,14 +613,17 @@ test("real-live-webrtc-continuous-request-then-confirmed-walk", async ({ page, b
     await expect(page.locator(".voice-record")).toContainText(walk.title);
     expect((await readState(caregiver)).tasks.find((task) => task.id === walk.id)?.status).toBe("pending");
     await page.screenshot({ path: resolve(reportDirectory, "real-live-confirming.png"), scale: "css" });
+    if (recoverLostResponse) recoveryEvidence = await recoverLostSaveResponse(page, caregiver, walk, { manual: manualAcceptance, runId: manualRunId, caseId: initial.demoId });
+    else {
     await confirmVoice(page, manualAcceptance ? async () => {
       await writeFile(resolve(reportDirectory, "manual-ready.json"), JSON.stringify({ status: "ready", runId: manualRunId, createdAt: new Date().toISOString(), caseId: initial.demoId, taskId: walk.id, taskTitle: walk.title, taskTime: walk.time, browser: "Google Chrome for Testing", appPID: null, runnerPID: process.pid, viewport: { width: 390, height: 844 }, url: page.url(), action: "Root must click Confirmar registro through native Computer Use. The test does not click in manual mode." }, null, 2) + "\n");
       console.log("MANUAL_CONFIRMATION_READY", manualRunId);
     } : undefined);
+    }
     await expectInstructionStatus(page, walk, "done", instructionCount);
     const final = await readState(caregiver);
     expect(final.tasks.find((task) => task.id === walk.id)?.status).toBe("done");
-    expect(requests).toHaveLength(1);
+    expect(requests).toHaveLength(recoverLostResponse ? 2 : 1);
     await expect(page.locator('.voice-panel[data-voice-state="saved"] .voice-record')).toContainText(walk.title);
     await expect(page.getByRole("button", { name: "Registrar outra coisa", exact: true })).toBeEnabled();
     await page.screenshot({ path: resolve(reportDirectory, "real-live-saved.png"), scale: "css", animations: "disabled" });
@@ -560,7 +633,7 @@ test("real-live-webrtc-continuous-request-then-confirmed-walk", async ({ page, b
     const events = await page.evaluate(() => (window as unknown as { __liveAudio?: { events: unknown[] } }).__liveAudio?.events ?? []).catch(() => []);
     const instructions = await readInstructionSnapshots(page).catch(() => []);
     await mkdir(reportDirectory, { recursive: true });
-    await writeFile(resolve(reportDirectory, "real-live-webrtc.json"), JSON.stringify({ result: passed ? "passed" : "failed", generatedAt: new Date().toISOString(), caseId: initial.demoId, taskId: walk.id, method: "Native RTCPeerConnection, real /api/voice/session and provider events. Only getUserMedia is replaced by synthetic pt-BR speech through WebAudio MediaStreamDestination; no speaker output.", syntheticAudio: [{ phrase: "O que falta eu fazer hoje?", sha256: createHash("sha256").update(questionBytes).digest("hex") }, { phrase: statementPhrase, sha256: createHash("sha256").update(statementBytes).digest("hex") }], questionResponse, setup: "All non-walk tasks explicitly recorded done before connecting; only walk remained pending.", actionRequests: requests, interpretationRequests, instructions, manualAcceptance, manualRunId, viewport: { width: 390, height: 844 }, events, limitation: "Synthetic TTS audio is not a physical microphone or human speech-quality evaluation." }, null, 2) + "\n");
+    await writeFile(resolve(reportDirectory, "real-live-webrtc.json"), JSON.stringify({ result: passed ? "passed" : "failed", generatedAt: new Date().toISOString(), caseId: initial.demoId, taskId: walk.id, method: "Native RTCPeerConnection, real /api/voice/session and provider events. Only getUserMedia is replaced by synthetic pt-BR speech through WebAudio MediaStreamDestination; no speaker output.", syntheticAudio: [{ phrase: "O que falta eu fazer hoje?", sha256: createHash("sha256").update(questionBytes).digest("hex") }, { phrase: statementPhrase, sha256: createHash("sha256").update(statementBytes).digest("hex") }], questionResponse, setup: "All non-walk tasks explicitly recorded done before connecting; only walk remained pending.", actionRequests: requests, interpretationRequests, instructions, recoveryEvidence, manualAcceptance, manualRunId, viewport: { width: 390, height: 844 }, events, limitation: "Synthetic TTS audio is not a physical microphone or human speech-quality evaluation." }, null, 2) + "\n");
     await caregiver.close();
   }
 });

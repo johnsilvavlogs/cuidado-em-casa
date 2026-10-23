@@ -15,6 +15,8 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
   const [transcript, setTranscript] = useState("");
   const [pending, setPending] = useState<VoiceCommand | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
+  const saveRequest = useRef<{ decisionId: string; body: string } | null>(null);
   const [saved, setSaved] = useState(false);
   const [savedCommand, setSavedCommand] = useState<VoiceCommand | null>(null);
   const [muted, setMuted] = useState(false);
@@ -75,7 +77,7 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
   async function connect() {
     stop();
     const thisAttempt = attempt.current;
-    setError(""); setSaved(false); savedRef.current = false; setTranscript(""); setInterpreting(false); setStatus("connecting"); sessionReady.current = false;
+    setError(""); setSaveFailed(false); saveRequest.current = null; setSaved(false); savedRef.current = false; setTranscript(""); setInterpreting(false); setStatus("connecting"); sessionReady.current = false;
     latestTranscript.current = { id: "", receivedAt: 0 }; dismissedTranscript.current = "";
     acceptedDecisions.current.clear();
     try {
@@ -205,19 +207,29 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
 
   async function confirm() {
     if (!pending || saving) return;
-    setSaving(true); setError("");
-    const action = confirmedVoiceAction(pending, latestState.current);
-    if (!action) { setError("O cuidado não está mais disponível. Feche e confira a rotina."); setSaving(false); return; }
+    setSaving(true); setSaveFailed(false); setError("");
+    if (saveRequest.current?.decisionId !== pending.decisionId) {
+      const action = confirmedVoiceAction(pending, latestState.current);
+      if (!action) { setError("O cuidado não está mais disponível. Feche e confira a rotina."); setSaving(false); return; }
+      saveRequest.current = { decisionId: pending.decisionId, body: JSON.stringify(action) };
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
     try {
-      const response = await fetch("/api/actions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(action) });
+      const response = await fetch("/api/actions", { method: "POST", headers: { "Content-Type": "application/json" }, body: saveRequest.current.body, signal: controller.signal });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "O registro não foi salvo.");
       onStateChange(result);
-      if (channel.current?.readyState === "open") channel.current.send(JSON.stringify({ type: "session.commentary.append", delegation_id: pending.delegationId, content: "A pessoa confirmou na tela. O servidor salvou o registro. Informe isso de forma breve, sem acrescentar orientação médica." }));
       savedRef.current = true; pendingRef.current = null;
       setSavedCommand(pending); setSaved(true); setPending(null); setTranscript(""); setError("");
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "O registro não foi salvo. Tente novamente."); }
-    finally { setSaving(false); }
+      try {
+        if (channel.current?.readyState === "open") channel.current.send(JSON.stringify({ type: "session.commentary.append", delegation_id: pending.delegationId, content: "A pessoa confirmou na tela. O servidor salvou o registro. Informe isso de forma breve, sem acrescentar orientação médica." }));
+      } catch { /* The persisted server result remains authoritative if voice disconnects. */ }
+    } catch (cause) {
+      setSaveFailed(true);
+      const networkFailure = controller.signal.aborted || cause instanceof TypeError || cause instanceof SyntaxError;
+      setError(networkFailure || !(cause instanceof Error) ? "Não recebi a confirmação. Tente salvar de novo." : cause.message);
+    } finally { clearTimeout(timeout); setSaving(false); }
   }
 
   const active = status === "listening" && !pending && !saved;
@@ -230,12 +242,12 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
   const summaryTitle = task?.title || (isSleep ? "Seu sono" : isFood ? "Sua alimentação" : "Pedido de apoio");
   const summaryValue = recordCommand?.action === "mark_done" ? "Realizado" : recordCommand?.action === "mark_not_done" ? "Não realizado" : recordCommand?.action === "sleep_low" ? "Dormiu pouco" : recordCommand?.action === "sleep_high" ? "Dormiu muito" : recordCommand?.action === "sleep_okay" ? "Sono suficiente" : recordCommand?.action === "food_yes" ? "Conseguiu se alimentar" : recordCommand?.action === "food_partial" ? "Alimentou-se em parte" : recordCommand?.action === "food_no" ? "Ainda não se alimentou" : "Pedir ajuda";
   const headline = pending ? "É isso mesmo?" : saved ? "Registro salvo." : status === "error" ? "Vamos tentar de novo?" : active ? "Estou ouvindo…" : status === "connecting" ? "Preparando para ouvir…" : `Pode falar, ${firstName(state.patient.name)}.`;
-  const statusText = pending ? "Confira o registro" : saved ? "Concluído" : status === "connecting" ? "Conectando microfone" : active ? "Microfone ligado" : "Microfone desligado";
+  const statusText = saving ? "Salvando…" : pending ? "Confira o registro" : saved ? "Concluído" : status === "connecting" ? "Conectando microfone" : active ? "Microfone ligado" : "Microfone desligado";
   function correct() {
     dismissedTranscript.current = latestTranscript.current.id;
     pendingRef.current = null;
     if (channel.current?.readyState === "open") channel.current.send(JSON.stringify({ type: "session.commentary.append", delegation_id: pending?.delegationId ?? null, content: "A pessoa cancelou a proposta na tela para dizer novamente. Nada foi salvo. Aguarde o novo relato." }));
-    setPending(null); setTranscript(""); setError("");
+    setPending(null); setTranscript(""); setError(""); setSaveFailed(false); saveRequest.current = null;
   }
   async function playback() {
     if (playbackBlocked) {
@@ -243,7 +255,7 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
     } else setMuted(value => !value);
   }
 
-  return <section className="voice-panel" data-voice-state={mode}>
+  return <section className="voice-panel" data-voice-state={mode} aria-busy={saving}>
     <div className={`voice-status ${active ? "is-live" : ""}`} role="status" aria-live="polite"><span aria-hidden="true" />{statusText}</div>
     <div className={`voice-orb ${active ? "is-listening" : ""}`} aria-hidden="true">
       {pending || saved ? <CheckIcon weight="bold" /> : status === "connecting" ? <CircleNotchIcon className="spin" /> : status === "error" ? <WarningCircleIcon /> : active ? <WaveformIcon weight="bold" /> : <Image src="/images/voice-microphone.png" alt="" width={144} height={144} priority />}
@@ -259,7 +271,7 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
     </div> : active ? <div className="voice-transcript" aria-live="polite">{transcript ? <blockquote>“{transcript}”</blockquote> : <p>Estou aqui. Pode começar a falar.</p>}</div> : !saved && status !== "connecting" && status !== "error" ? <div className="voice-examples"><p>EXEMPLOS DO QUE VOCÊ PODE DIZER</p><div>{[{image:"medicine",text:"Tomei meu remédio"},{image:"sleep",text:"Dormi pouco"},{image:"meal",text:"Já almocei"}].map(example=><div className="voice-example" key={example.image}><Image src={`/images/voice-${example.image}.png`} alt="" width={32} height={32} /><span>{example.text}</span></div>)}</div></div> : null}
 
     <div className="voice-actions">
-      {pending ? <><button className="button primary" disabled={saving} onClick={confirm}>{saving ? <><CircleNotchIcon className="spin" size={20}/>Salvando…</> : "Confirmar registro"}</button><button className="button secondary" disabled={saving} onClick={correct}>Corrigir</button></> : saved ? <><p className="sr-only" role="status">Registro salvo e compartilhado com seu cuidador.</p><button className="button primary" onClick={connect}>Registrar outra coisa</button><button className="button secondary" onClick={()=>{stop();onClose();}}>Voltar para meu dia</button></> : active ? <div className="voice-live-controls"><button onClick={playback} disabled={!audioReady}><span>{muted ? <SpeakerSlashIcon size={24}/> : <SpeakerHighIcon size={24}/>}</span>{playbackBlocked ? "Ouvir resposta" : muted ? "Ativar som" : "Silenciar"}</button><button onClick={()=>{stop();setStatus("idle");setTranscript("");}}><span><StopIcon size={23} weight="fill"/></span>Parar de ouvir</button></div> : <><button className="button primary" onClick={connect} disabled={status === "connecting"}>{status === "connecting" ? <><CircleNotchIcon className="spin" size={20}/>Conectando…</> : <><MicrophoneIcon size={22}/>{status === "error" ? "Tentar novamente" : "Começar a falar"}</>}</button><button className="button secondary" onClick={()=>{stop();onClose();}}>Prefiro usar os botões</button></>}
+      {pending ? <><button className="button primary" disabled={saving} onClick={confirm}>{saving ? <><CircleNotchIcon className="spin" size={20}/>Salvando…</> : saveFailed ? "Tentar salvar de novo" : "Confirmar registro"}</button><button className="button secondary" disabled={saving} onClick={correct}>Corrigir</button></> : saved ? <><p className="sr-only" role="status">Registro salvo e compartilhado com seu cuidador.</p><button className="button primary" onClick={connect}>Registrar outra coisa</button><button className="button secondary" onClick={()=>{stop();onClose();}}>Voltar para meu dia</button></> : active ? <div className="voice-live-controls"><button onClick={playback} disabled={!audioReady}><span>{muted ? <SpeakerSlashIcon size={24}/> : <SpeakerHighIcon size={24}/>}</span>{playbackBlocked ? "Ouvir resposta" : muted ? "Ativar som" : "Silenciar"}</button><button onClick={()=>{stop();setStatus("idle");setTranscript("");}}><span><StopIcon size={23} weight="fill"/></span>Parar de ouvir</button></div> : <><button className="button primary" onClick={connect} disabled={status === "connecting"}>{status === "connecting" ? <><CircleNotchIcon className="spin" size={20}/>Conectando…</> : <><MicrophoneIcon size={22}/>{status === "error" ? "Tentar novamente" : "Começar a falar"}</>}</button><button className="button secondary" onClick={()=>{stop();onClose();}}>Prefiro usar os botões</button></>}
     </div>
     <p className="voice-privacy"><LockSimpleIcon size={18}/>{pending ? "Só será salvo depois da sua confirmação." : saved ? "Registro disponível no seu histórico." : "Você confere antes de salvar."}</p>
   </section>;

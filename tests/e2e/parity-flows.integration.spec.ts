@@ -96,8 +96,8 @@ for (const display of displays) {
     const { context, page, initial } = await start(browser, display, "patient");
     const proof = new Proof(page, context, "patient-routine", display);
     try {
-      await proof.record("source_open", "Ready patient case, next care has a private original.", { target: { role: "button", name: "Ver orientação do plano" }, kind: "click", description: "Open original and close back to next care." }, async () => {
-        await page.locator('[data-parity-anchor="next-care"]').getByRole("button", { name: "Ver orientação do plano", exact: true }).click();
+      await proof.record("source_open", "Ready patient case, next care has a private original.", { target: { role: "button", name: "Ver orientação" }, kind: "click", description: "Open original and close back to next care." }, async () => {
+        await page.locator('[data-parity-anchor="next-care"]').getByRole("button", { name: "Ver orientação", exact: true }).click();
         await expect(page.getByRole("dialog").getByRole("region", { name: "Documento original" })).toBeVisible();
         const original = await context.request.get(initial.document!.url);
         await expect(page.locator(".document-stage pre")).toHaveText(await original.text());
@@ -124,7 +124,7 @@ for (const display of displays) {
       }, async () => [check("absent sleep label", true, await page.getByText("Sono não informado", { exact: true }).isVisible())]);
 
       await proof.record("navigation_keyboard", "Patient routine with all keyboard controls available.", { target: { role: "navigation", name: "Navegação principal" }, kind: "keyboard", description: "Tab/Enter through primary care, Plano, Histórico, and return." }, async () => {
-        const primary = page.getByRole("button", { name: "Registrar como feito", exact: true }); await keyboardTo(page, primary);
+        const primary = page.getByRole("button", { name: "Já fiz", exact: true }); await keyboardTo(page, primary);
         const focused = await primary.evaluate(el => el === document.activeElement && getComputedStyle(el).outlineStyle !== "none");
         const nav = page.getByRole("navigation");
         await keyboardTo(page, nav.getByRole("button", { name: "Plano", exact: true })); await page.keyboard.press("Enter");
@@ -154,7 +154,7 @@ for (const display of displays) {
         const listener = (request: { url(): string; method(): string; postDataJSON(): unknown }) => { if (request.url().endsWith("/api/actions") && request.method() === "POST") requests.push(request.postDataJSON()); };
         page.on("request", listener);
         await page.route("**/api/actions", async route => { if (!failed) { failed = true; await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "Falha controlada de gravação para verificar recuperação." }) }); } else await route.continue(); });
-        await page.getByRole("button", { name: "Registrar como feito", exact: true }).click();
+        await page.getByRole("button", { name: "Já fiz", exact: true }).click();
         await expect(page.getByRole("alert").filter({ hasText: "Falha controlada" })).toBeVisible();
         const afterFailure = await state(context);
         await clickSave(page, page.getByRole("button", { name: "Tentar novamente", exact: true }));
@@ -164,9 +164,9 @@ for (const display of displays) {
       }, async () => [check("retried write survives reload", "done", (await state(context)).tasks.find(t => t.id === pendingId)!.status)]);
 
       let correctedId = "";
-      await proof.record("primary_action", "Next pending care; a prior completed care remains in history.", { target: { role: "button", name: "Registrar como feito" }, kind: "click", description: "Record next task, then correct that same occurrence through its task dialog." }, async () => {
+      await proof.record("primary_action", "Next pending care; a prior completed care remains in history.", { target: { role: "button", name: "Já fiz" }, kind: "click", description: "Record next task, then correct that same occurrence through its task dialog." }, async () => {
         correctedId = (await state(context)).tasks.find(t => t.status === "pending")!.id;
-        await clickSave(page, page.getByRole("button", { name: "Registrar como feito", exact: true }));
+        await clickSave(page, page.getByRole("button", { name: "Já fiz", exact: true }));
         await page.locator(".routine-more>summary").click();
         const current = await state(context); const task = current.tasks.find(t => t.id === correctedId)!;
         await page.locator(".compact-task").filter({ hasText: task.title.replace(/\s*\(fictício\)/g, "") }).filter({ hasText: task.time }).first().click();
@@ -189,11 +189,11 @@ for (const display of displays) {
       await proof.record("primary_action", "Caregiver sees the overdue 08:00 occurrence after its 30-minute tolerance.", { target: { role: "button", name: "Ver pendência" }, kind: "click", description: "Open overdue care without changing its pending status." }, async () => {
         await page.getByRole("button", { name: "Ver pendência", exact: true }).click();
         const visible = await page.getByRole("dialog").innerText(); await close(page);
-        return [check("correct task and source action visible", true, visible.includes(pending.title.replace(/\s*\(fictício\)/g, "")) && visible.includes("Ver orientação do plano")), check("reading does not complete task", "pending", (await state(context)).tasks.find(t => t.id === pending.id)!.status)];
+        return [check("correct task and source action visible", true, visible.includes(pending.title.replace(/\s*\(fictício\)/g, "")) && visible.includes("Ver orientação")), check("reading does not complete task", "pending", (await state(context)).tasks.find(t => t.id === pending.id)!.status)];
       }, async () => [check("pending state after reload", "pending", (await state(context)).tasks.find(t => t.id === pending.id)!.status)]);
 
-      await proof.record("source_open", "An overdue care points to a private original.", { target: { role: "button", name: "Ver orientação do plano" }, kind: "click", description: "Open the care's original then return to the caregiver routine." }, async () => {
-        await page.getByRole("button", { name: "Ver pendência", exact: true }).click(); await page.getByRole("button", { name: "Ver orientação do plano", exact: true }).click();
+      await proof.record("source_open", "An overdue care points to a private original.", { target: { role: "button", name: "Ver orientação" }, kind: "click", description: "Open the care's original then return to the caregiver routine." }, async () => {
+        await page.getByRole("button", { name: "Ver pendência", exact: true }).click(); await page.getByRole("button", { name: "Ver orientação", exact: true }).click();
         const original = await context.request.get(patient.initial.document!.url);
         await expect(page.locator(".document-stage pre")).toHaveText(await original.text()); const actual = await page.locator(".document-stage pre").innerText(); await close(page);
         return [check("correct private original", await original.text(), actual)];
@@ -219,7 +219,7 @@ for (const display of displays) {
       }, async () => [check("resolution persists", "resolved", (await state(context)).helpRequests.find(h => h.id === helpId)!.status)]);
 
       await proof.record("new_patient_record", "Caregiver remains open while patient records a task in a separate session.", { target: { selector: ".caregiver-progress strong" }, kind: "click", description: "Patient records care through real UI; caregiver receives normal polling update then reloads." }, async () => {
-        await clickSave(patient.page, patient.page.getByRole("button", { name: "Registrar como feito", exact: true }));
+        await clickSave(patient.page, patient.page.getByRole("button", { name: "Já fiz", exact: true }));
         await expect(page.locator(".caregiver-progress strong")).toContainText("1 de 4");
         const saved = await state(context);
         return [check("polling shows patient record", true, (await page.locator(".caregiver-progress strong").innerText()).includes("1 de 4")), check("author is patient", "patient", saved.tasks.find(t => t.id === pending.id)!.author)];
