@@ -138,7 +138,7 @@ export default function Home() {
 
   if (loading) return <div className="loading-page"><Brand /><p className="loading-line"><Busy>Preparando seu cuidado…</Busy></p></div>;
 
-  return <ActionErrorContext.Provider value={failure}><ActionFeedbackContext.Provider value={{ busy, notice }}><div className="app-shell">
+  return <ActionErrorContext.Provider value={failure}><ActionFeedbackContext.Provider value={{ busy, notice, actionId: sequence.current }}><div className="app-shell">
     <header className="app-header" data-parity-anchor="app-header"><Brand />{state && <button className="profile-control" onClick={() => setAccount(true)} aria-label={`Abrir perfil de ${firstName(isCaregiver ? state.patient.caregiverName : state.patient.name)}`}><Portrait name={isCaregiver ? state.patient.caregiverName : state.patient.name} role={state.role} /></button>}</header>
     {state ? <>
       <div className="app-frame"><nav className="main-nav" aria-label="Navegação principal" data-parity-anchor="navigation"><div className="nav-items"><button aria-current={section === "today" ? "page" : undefined} className={section === "today" ? "active" : ""} onClick={() => setSection("today")}><CalendarDotsIcon size={23} /><span>{isCaregiver ? "Hoje" : "Meu dia"}</span></button><button aria-current={section === "plan" ? "page" : undefined} className={section === "plan" ? "active" : ""} onClick={() => setSection("plan")}><FileTextIcon size={23} /><span>Plano</span>{state.plan.status === "draft" && <span className="nav-mark" />}</button><button aria-current={section === "history" ? "page" : undefined} className={section === "history" ? "active" : ""} onClick={() => setSection("history")}><ClockCounterClockwiseIcon size={23} /><span>Histórico</span></button></div></nav>
