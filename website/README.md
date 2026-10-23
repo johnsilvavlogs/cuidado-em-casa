@@ -27,3 +27,7 @@ Os nomes de tecnologias descrevem seu papel no protótipo, sem alegação de val
 O seletor de perspectivas e a borda do CTA usam um acabamento translúcido inspirado nos materiais de interface da Apple; não são componentes nativos ou código da Apple. Em telas de até 600 px, o seletor alterna um único celular, com dois segmentos de largura igual, rótulos escuros, foco visível e uma lente ativa que desliza. Acima de 600 px, as duas perspectivas aparecem lado a lado e o seletor é removido da tela e da navegação por teclado. `prefers-reduced-motion` remove o movimento; redução de transparência, contraste aumentado ou ausência de `backdrop-filter` produzem uma alternativa opaca.
 
 Referências: [Materials](https://developer.apple.com/design/human-interface-guidelines/materials) e [Segmented controls](https://developer.apple.com/design/human-interface-guidelines/segmented-controls).
+
+## Link permanente do vídeo
+
+`https://cuidado-em-casa.johnsilvabr.chatgpt.site/video-demo` é a URL para o formulário. Enquanto `website/video-demo/config.js` não tiver destino, mostra a página de preparação. Preencha `CUIDADO_VIDEO_URL` com a URL HTTPS do vídeo e republique o mesmo Site; a página passa a redirecionar sem mudar a URL do formulário. Páginas já abertas verificam o destino a cada 15 segundos enquanto visíveis.
