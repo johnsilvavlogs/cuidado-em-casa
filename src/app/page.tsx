@@ -54,7 +54,7 @@ export default function Home() {
       setNotice(success);
       return true;
     } catch (cause) {
-      setFailure({ message: cause instanceof Error ? cause.message : "Não foi possível conectar. Tente novamente.", retry: () => execute(endpoint, body, success) });
+      setFailure({ message: cause instanceof TypeError || !(cause instanceof Error) ? "Não foi possível confirmar se foi salvo. Confira sua conexão com a internet e tente novamente." : cause.message, retry: () => execute(endpoint, body, success) });
       return false;
     } finally {
       mutating.current = false;
