@@ -1,0 +1,426 @@
+{
+  "synthetic": true,
+  "clinical_validation": false,
+  "date": "2026-10-23",
+  "cases": [
+    {
+      "id": "ORT01",
+      "specialty": "ortopedia",
+      "patient": "Marina Duarte Falcão",
+      "age": 29,
+      "title": "Orientações após entorse do tornozelo",
+      "condition": "Entorse leve do tornozelo direito.",
+      "sections": [
+        [
+          "Uso oral",
+          [
+            "<b>Paracetamol 500 mg - comprimidos.</b> Tomar 1 comprimido por via oral a cada 8 horas, se houver dor, por até 3 dias.",
+            "Não associar com outros medicamentos que contenham paracetamol."
+          ]
+        ],
+        [
+          "Cuidados nos próximos dias",
+          [
+            "Aplicar compressa fria, envolvida em pano, por 15 minutos, 3 vezes ao dia, durante 3 dias. Não aplicar gelo diretamente na pele.",
+            "Manter o pé elevado quando estiver em repouso. Evitar corrida e saltos por 7 dias.",
+            "Caminhar conforme tolerado, sem forçar se houver piora da dor."
+          ]
+        ],
+        [
+          "Reabilitação",
+          [
+            "Fisioterapia: 2 sessões por semana, durante 3 semanas. Início em 26/10/2026, com exercícios definidos após avaliação do fisioterapeuta."
+          ]
+        ],
+        [
+          "Retorno e sinais de alerta",
+          [
+            "Retorno em 30/10/2026. Procurar atendimento antes se houver dor crescente, incapacidade de apoiar o pé, dormência ou pé frio."
+          ]
+        ]
+      ],
+      "expected": {
+        "laterality": "direita",
+        "body_site": "tornozelo",
+        "medications": [
+          {
+            "name": "paracetamol",
+            "strength_mg": 500,
+            "form": "comprimido",
+            "units_per_dose": 1,
+            "route": "oral",
+            "interval_hours": 8,
+            "as_needed": true,
+            "indication": "dor",
+            "max_duration_days": 3
+          }
+        ],
+        "cold_compress": {
+          "minutes": 15,
+          "times_per_day": 3,
+          "duration_days": 3
+        },
+        "physiotherapy": {
+          "sessions_per_week": 2,
+          "duration_weeks": 3,
+          "start_date": "2026-10-26"
+        },
+        "restrictions": [
+          {
+            "activity": "corrida e saltos",
+            "duration_days": 7
+          }
+        ],
+        "follow_up_date": "2026-10-30"
+      },
+      "file": "receitas/01_marina_duarte_falcao.pdf",
+      "format": "pdf",
+      "document_style": "digitado",
+      "legibility": "legivel",
+      "expected_behavior": "extrair"
+    },
+    {
+      "id": "ORT02",
+      "specialty": "ortopedia",
+      "patient": "Rafael Nogueira Lins",
+      "age": 38,
+      "title": "Plano de cuidado para dor lombar",
+      "condition": "Lombalgia mecânica sem sinais de alarme.",
+      "sections": [
+        [
+          "Atividades e rotina",
+          [
+            "Manter atividades leves conforme tolerado. Evitar repouso prolongado na cama.",
+            "Fazer uma pausa de 5 minutos a cada 60 minutos sentado, durante os próximos 14 dias.",
+            "Evitar carregar peso que piore a dor até a reavaliação."
+          ]
+        ],
+        [
+          "Fisioterapia",
+          [
+            "Realizar 2 sessões por semana, por 4 semanas. Início após avaliação do fisioterapeuta; data ainda não definida."
+          ]
+        ],
+        [
+          "Reavaliação",
+          [
+            "Retorno em 06/11/2026. Procurar atendimento imediato se surgir fraqueza progressiva nas pernas, perda de controle urinário ou intestinal, ou dormência na região genital."
+          ]
+        ]
+      ],
+      "expected": {
+        "body_site": "região lombar",
+        "laterality": null,
+        "medications": [],
+        "breaks": {
+          "minutes": 5,
+          "interval_minutes": 60,
+          "duration_days": 14
+        },
+        "physiotherapy": {
+          "sessions_per_week": 2,
+          "duration_weeks": 4,
+          "start_date": null
+        },
+        "follow_up_date": "2026-11-06"
+      },
+      "file": "receitas/02_rafael_nogueira_lins.pdf",
+      "format": "pdf",
+      "document_style": "digitado",
+      "legibility": "legivel",
+      "expected_behavior": "extrair"
+    },
+    {
+      "id": "ORT03",
+      "slug": "manuscrita_legivel",
+      "specialty": "ortopedia",
+      "patient": "Helena Costa Valença",
+      "age": 46,
+      "legibility": "legivel",
+      "expected_behavior": "extrair",
+      "visible_transcription": "Orientações para o ombro direito\nParacetamol 500 mg: tomar 1 comprimido por via oral a cada 8 horas, se dor, por até 3 dias.\nEvitar movimentos repetidos acima da cabeça por 7 dias.\nCompressa fria com pano por 15 minutos, 3 vezes ao dia, por 5 dias.\nFisioterapia: 2 sessões por semana, durante 4 semanas.\nNão forçar movimentos que provoquem dor.\nRetorno em 20/11/2026.\nSe houver perda súbita de força, procurar atendimento.",
+      "expected": {
+        "body_site": "ombro",
+        "laterality": "direita",
+        "medications": [
+          {
+            "name": "paracetamol",
+            "strength_mg": 500,
+            "form": "comprimido",
+            "units_per_dose": 1,
+            "route": "oral",
+            "interval_hours": 8,
+            "as_needed": true,
+            "indication": "dor",
+            "max_duration_days": 3
+          }
+        ],
+        "cold_compress": {
+          "minutes": 15,
+          "times_per_day": 3,
+          "duration_days": 5
+        },
+        "physiotherapy": {
+          "sessions_per_week": 2,
+          "duration_weeks": 4,
+          "start_date": null
+        },
+        "restrictions": [
+          {
+            "activity": "movimentos repetidos acima da cabeça",
+            "duration_days": 7
+          }
+        ],
+        "follow_up_date": "2026-11-20"
+      },
+      "illegible_fields": [],
+      "review": {
+        "status": "conferido",
+        "method": "inspeção visual pelo modelo",
+        "clinical_validation": false
+      },
+      "file": "receitas/03_helena_costa_valenca.pdf",
+      "format": "pdf",
+      "document_style": "manuscrito_imagegen"
+    },
+    {
+      "id": "ORT04",
+      "slug": "manuscrita_frequencia_ilegivel",
+      "specialty": "ortopedia",
+      "patient": "Bruno Almeida Tavares",
+      "age": 52,
+      "legibility": "parcial",
+      "expected_behavior": "extrair_parcial_e_solicitar_esclarecimento",
+      "visible_transcription": "Cuidados com o joelho esquerdo\nEvitar corrida e saltos por 14 dias.\nFisioterapia: [ilegível] sessões por semana, por 4 semanas.\nCaminhadas curtas conforme tolerado.\nSuspender exercício se houver piora da dor.\nRetorno em 20/11/2026.",
+      "expected": {
+        "body_site": "joelho",
+        "laterality": "esquerda",
+        "medications": [],
+        "physiotherapy": {
+          "sessions_per_week": null,
+          "duration_weeks": 4,
+          "start_date": null
+        },
+        "restrictions": [
+          {
+            "activity": "corrida e saltos",
+            "duration_days": 14
+          }
+        ],
+        "follow_up_date": "2026-11-20"
+      },
+      "illegible_fields": [
+        {
+          "field": "physiotherapy.sessions_per_week",
+          "region_description": "Trecho entre Fisioterapia: e sessões por semana.",
+          "reason": "traços de caneta sobrepostos impedem recuperar o número",
+          "hidden_value": null
+        }
+      ],
+      "suggested_product_message": "Não foi possível ler quantas sessões de fisioterapia por semana foram indicadas. Envie uma imagem mais nítida ou confirme essa informação com o profissional.",
+      "review": {
+        "status": "conferido",
+        "method": "inspeção visual pelo modelo",
+        "clinical_validation": false
+      },
+      "file": "receitas/04_bruno_almeida_tavares.jpg",
+      "format": "jpg",
+      "document_style": "manuscrito_imagegen"
+    },
+    {
+      "id": "PSI01",
+      "specialty": "psiquiatria",
+      "patient": "Camila Ribeiro Noronha",
+      "age": 36,
+      "title": "Receituário e orientações",
+      "condition": "Episódio depressivo em acompanhamento.",
+      "sections": [
+        [
+          "Uso oral",
+          [
+            "<b>Sertralina 50 mg, comprimido.</b> Tomar 1 comprimido por via oral, 1 vez ao dia, pela manhã, às 08:00. Início em 23/10/2026.",
+            "Uso contínuo. Reavaliar em 06/11/2026. Não ajustar nem interromper por conta própria.",
+            "Se esquecer uma dose, não dobrar a próxima. Não associar outros medicamentos sem orientação."
+          ]
+        ],
+        [
+          "Acompanhamento",
+          [
+            "Psicoterapia: 1 sessão por semana, por 8 semanas. Registrar diariamente sono, humor e possíveis efeitos indesejados."
+          ]
+        ],
+        [
+          "Retorno e intercorrências",
+          [
+            "Retorno em 06/11/2026. Procurar atendimento imediato diante de piora intensa, pensamentos de autoagressão, agitação importante ou reação alérgica."
+          ]
+        ]
+      ],
+      "expected": {
+        "medications": [
+          {
+            "name": "sertralina",
+            "strength_mg": 50,
+            "form": "comprimido",
+            "units_per_dose": 1,
+            "route": "oral",
+            "times_per_day": 1,
+            "time": "08:00",
+            "start_date": "2026-10-23",
+            "duration_days": null,
+            "duration_text": "uso contínuo"
+          }
+        ],
+        "psychotherapy": {
+          "sessions_per_week": 1,
+          "duration_weeks": 8
+        },
+        "follow_up_date": "2026-11-06"
+      },
+      "file": "receitas/05_camila_ribeiro_noronha.pdf",
+      "format": "pdf",
+      "document_style": "digitado",
+      "legibility": "legivel",
+      "expected_behavior": "extrair"
+    },
+    {
+      "id": "PSI02",
+      "specialty": "psiquiatria",
+      "patient": "Lucas Martins Belmonte",
+      "age": 44,
+      "title": "Orientações para rotina do sono",
+      "condition": "Insônia em avaliação; plano inicial sem medicamento.",
+      "sections": [
+        [
+          "Rotina nas próximas 2 semanas",
+          [
+            "Manter horário fixo para levantar, inclusive aos fins de semana. O horário exato será definido com o paciente.",
+            "Evitar cafeína no período de 6 horas antes do horário habitual de dormir.",
+            "Preencher diário do sono todas as manhãs por 14 dias, registrando horário de deitar, despertares e horário de levantar."
+          ]
+        ],
+        [
+          "Tratamento e acompanhamento",
+          [
+            "Terapia cognitivo-comportamental para insônia: 1 sessão por semana, por 6 semanas. Nenhum medicamento foi prescrito neste documento."
+          ]
+        ],
+        [
+          "Retorno",
+          [
+            "Reavaliação em 06/11/2026, levando o diário do sono. Procurar avaliação antes se houver sonolência que comprometa atividades ou piora acentuada do humor."
+          ]
+        ]
+      ],
+      "expected": {
+        "medications": [],
+        "sleep_diary": {
+          "times_per_day": 1,
+          "duration_days": 14
+        },
+        "caffeine_avoidance_hours_before_bed": 6,
+        "wake_time": null,
+        "psychotherapy": {
+          "type": "TCC para insônia",
+          "sessions_per_week": 1,
+          "duration_weeks": 6
+        },
+        "follow_up_date": "2026-11-06"
+      },
+      "file": "receitas/06_lucas_martins_belmonte.jpg",
+      "format": "jpg",
+      "document_style": "digitado",
+      "legibility": "legivel",
+      "expected_behavior": "extrair"
+    },
+    {
+      "id": "PSI03",
+      "slug": "manuscrita_dose_ilegivel",
+      "specialty": "psiquiatria",
+      "patient": "Beatriz Moreira Valim",
+      "age": 34,
+      "legibility": "parcial",
+      "expected_behavior": "extrair_parcial_e_bloquear_posologia_pendente",
+      "visible_transcription": "Orientações de acompanhamento\nSertralina [ilegível] mg\nTomar 1 comprimido por via oral pela manhã.\nNão ajustar a dose sem falar com o médico.\nPsicoterapia: 1 sessão por semana.\nRetorno em 06/11/2026.",
+      "expected": {
+        "diagnosis": null,
+        "medications": [
+          {
+            "name": "sertralina",
+            "strength_mg": null,
+            "form": "comprimido",
+            "units_per_dose": 1,
+            "route": "oral",
+            "time_of_day": "manhã",
+            "exact_time": null,
+            "duration_days": null,
+            "actionable": false
+          }
+        ],
+        "psychotherapy": {
+          "sessions_per_week": 1,
+          "duration_weeks": null
+        },
+        "follow_up_date": "2026-11-06"
+      },
+      "illegible_fields": [
+        {
+          "field": "medications[0].strength_mg",
+          "region_description": "Trecho entre Sertralina e mg.",
+          "reason": "dose não recuperável por sobreposição de tinta",
+          "hidden_value": null
+        }
+      ],
+      "suggested_product_message": "O nome sertralina está legível, mas a dosagem em mg não está. Confirme a dosagem com o profissional ou envie outra imagem antes de registrar o uso.",
+      "review": {
+        "status": "conferido",
+        "method": "inspeção visual pelo modelo",
+        "clinical_validation": false
+      },
+      "file": "receitas/07_beatriz_moreira_valim.jpg",
+      "format": "jpg",
+      "document_style": "manuscrito_imagegen"
+    },
+    {
+      "id": "PSI04",
+      "slug": "manuscrita_ilegivel",
+      "specialty": "psiquiatria",
+      "patient": "André Carvalho Siqueira",
+      "age": 41,
+      "legibility": "corpo_ilegivel",
+      "expected_behavior": "solicitar_nova_imagem_sem_inferir_tratamento",
+      "visible_transcription": "[Corpo clínico ilegível. Cabeçalho: Dra. Lívia Azevedo Pimentel, Psiquiatria; André Carvalho Siqueira, 41 anos; 23/10/2026.]",
+      "expected": {
+        "diagnosis": null,
+        "medications": null,
+        "psychotherapy": null,
+        "follow_up_date": null,
+        "clinical_instructions": null
+      },
+      "illegible_fields": [
+        {
+          "field": "clinical_body",
+          "region_description": "Todas as linhas manuscritas do corpo do documento.",
+          "reason": "escrita cursiva indecifrável, sobreposta e de baixo contraste",
+          "hidden_value": null
+        }
+      ],
+      "suggested_product_message": "Não consegui ler as orientações deste documento com segurança. Envie uma foto mais nítida ou uma versão digitada fornecida pelo profissional.",
+      "review": {
+        "status": "conferido",
+        "method": "inspeção visual pelo modelo",
+        "clinical_validation": false
+      },
+      "file": "receitas/08_andre_carvalho_siqueira.jpg",
+      "format": "jpg",
+      "document_style": "manuscrito_imagegen"
+    }
+  ],
+  "evaluation_rules": [
+    "Cada arquivo deve ser testado isoladamente.",
+    "Não inferir campos ilegíveis.",
+    "Campos ausentes ou ilegíveis devem permanecer null.",
+    "A especialidade do cabeçalho não permite inferir diagnóstico.",
+    "Doses ilegíveis não autorizam criar posologia ativa."
+  ]
+}
