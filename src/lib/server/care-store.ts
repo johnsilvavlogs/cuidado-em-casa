@@ -36,3 +36,15 @@ export async function importDraft(document: DocumentRef, extraction: ExtractionR
 export async function getSessionDocument(id: string): Promise<{ reference: DocumentRef; bytes: Uint8Array }> {
   return repository.getDocument(await sessionToken(), id);
 }
+
+export async function registerAccount(input: unknown): Promise<{ token: string; state: CareState }> {
+  return repository.register(input);
+}
+
+export async function loginAccount(input: unknown): Promise<{ token: string; state: CareState }> {
+  return repository.login(input);
+}
+
+export async function logoutSession(): Promise<void> {
+  await repository.logout(await sessionToken());
+}

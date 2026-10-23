@@ -1,15 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowRightIcon, ArrowsClockwiseIcon, CalendarDotsIcon, CheckCircleIcon, ClockCounterClockwiseIcon, CopyIcon, FileTextIcon, HandHeartIcon, ShieldCheckIcon, UsersIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { ArrowsClockwiseIcon, CalendarDotsIcon, CheckCircleIcon, ClockCounterClockwiseIcon, CopyIcon, FileTextIcon, UsersIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import type { CareAction, CareSessionContext, CareState, Role } from "@/lib/contracts";
+import AccessPanel, { type AccountCredentials } from "@/components/access-panel";
 import DailyCare from "@/components/daily-care";
 import PlanPanel from "@/components/plan-panel";
 import VoicePanel from "@/components/voice-panel";
 import { ActionErrorContext, ActionFeedbackContext, Brand, Busy, EmptyState, firstName, historyDateTimeLabel, historyText, Modal, Portrait, type ActionInput } from "@/components/care-ui";
 
 type Section = "today" | "plan" | "history";
-type ApiFailure = { message: string; retry: () => Promise<boolean> };
+type ApiFailure = { message: string; retry: () => Promise<boolean>; session?: boolean };
 
 async function responseState(response: Response): Promise<CareState> {
   const body = await response.json().catch(() => null);
@@ -27,7 +28,6 @@ export default function Home() {
   const [section, setSection] = useState<Section>("today");
   const [account, setAccount] = useState(false);
   const [voice, setVoice] = useState(false);
-  const [entryRole, setEntryRole] = useState<Role>("patient");
   const [copied, setCopied] = useState(false);
   const stateRef = useRef<CareState | null>(null);
   const sequence = useRef(0);
@@ -73,22 +73,71 @@ export default function Home() {
     return result;
   }, [submit]);
 
+  const authenticate = useCallback(async (mode: "register" | "login", credentials: AccountCredentials) => {
+    const result = await submit(`/api/auth/${mode}`, credentials, "");
+    if (result) {
+      window.history.replaceState(null, "", "/");
+      setSection(stateRef.current?.plan.status === "active" ? "today" : "plan");
+      setAccount(false);
+    }
+    return result;
+  }, [submit]);
+
+  const logout = useCallback(async function execute(): Promise<boolean> {
+    if (mutating.current) return false;
+    mutating.current = true;
+    sequence.current += 1;
+    setBusy("Saindo…");
+    setFailure(null);
+    setNotice("");
+    try {
+      const response = await fetch("/api/auth/logout", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const body = await response.json().catch(() => null);
+      if (!response.ok || body?.ok !== true) throw new Error(body?.error ?? "Não foi possível sair. Tente novamente.");
+      stateRef.current = null;
+      retryableAction.current = null;
+      setState(null);
+      setAccount(false);
+      setVoice(false);
+      setSection("today");
+      setSyncError(false);
+      setCopied(false);
+      window.history.replaceState(null, "", "/");
+      return true;
+    } catch (cause) {
+      setFailure({ message: cause instanceof Error ? cause.message : "Não foi possível sair. Tente novamente.", retry: execute });
+      return false;
+    } finally {
+      mutating.current = false;
+      setBusy("");
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
-    async function initialize() {
+    async function initialize(): Promise<boolean> {
       try {
-        const params = new URLSearchParams(window.location.search);
-        const demo = params.get("demo");
-        const role = params.get("role");
-        if (demo && (role === "patient" || role === "caregiver")) {
-          if (!cancelled) await startDemo("ready", role, demo);
+        const response = await fetch("/api/state", { cache: "no-store" });
+        const next = response.ok ? await responseState(response) : null;
+        if (!response.ok && response.status !== 401) throw new Error("Não foi possível carregar a sessão. Tente novamente.");
+        if (cancelled) return false;
+        if (next?.account) {
+          receive(next);
+          window.history.replaceState(null, "", "/");
+          setSection(next.plan.status === "active" ? "today" : "plan");
         } else {
-          const response = await fetch("/api/state", { cache: "no-store" });
-          if (response.ok) { const next = await responseState(response); if (!cancelled) receive(next); }
-          else if (response.status !== 401) throw new Error("Não foi possível carregar a sessão. Tente iniciar novamente.");
+          const params = new URLSearchParams(window.location.search);
+          const demo = params.get("demo");
+          const role = params.get("role");
+          if (demo && (role === "patient" || role === "caregiver")) return await startDemo("ready", role, demo);
+          if (next) receive(next);
         }
-      } catch (cause) { if (!cancelled) setFailure({ message: cause instanceof Error ? cause.message : "Falha ao carregar a sessão.", retry: () => startDemo("ready", "patient") }); }
-      finally { if (!cancelled) setLoading(false); }
+        setFailure(null);
+        return true;
+      } catch (cause) {
+        if (!cancelled) setFailure({ message: cause instanceof Error ? cause.message : "Falha ao carregar a sessão.", retry: initialize, session: true });
+        return false;
+      } finally { if (!cancelled) setLoading(false); }
     }
     void initialize();
     return () => { cancelled = true; };
@@ -139,12 +188,12 @@ export default function Home() {
   }, [submit]);
   const isCaregiver = state?.role === "caregiver";
   const otherRole = isCaregiver ? "patient" : "caregiver";
-  const otherLink = state && typeof window !== "undefined" ? `${window.location.origin}/?demo=${encodeURIComponent(state.demoId)}&role=${otherRole}` : "";
+  const otherLink = state && !state.account && typeof window !== "undefined" ? `${window.location.origin}/?demo=${encodeURIComponent(state.demoId)}&role=${otherRole}` : "";
 
   if (loading) return <div className="loading-page"><Brand /><p className="loading-line"><Busy>Preparando seu cuidado…</Busy></p></div>;
 
   return <ActionErrorContext.Provider value={failure}><ActionFeedbackContext.Provider value={{ busy, notice, actionId: sequence.current }}><div className="app-shell">
-    <header className="app-header" data-parity-anchor="app-header"><Brand />{state && <button className="profile-control" onClick={() => setAccount(true)} aria-label={`Abrir perfil de ${firstName(isCaregiver ? state.patient.caregiverName : state.patient.name)}`}><Portrait name={isCaregiver ? state.patient.caregiverName : state.patient.name} role={state.role} /></button>}</header>
+    <header className="app-header" data-parity-anchor="app-header"><div className="header-brand"><Brand /><span className="badge badge-neutral">{state?.account || !state ? "Ambiente de avaliação" : "Demonstração · dados fictícios"}</span></div>{state && <button className="profile-control" onClick={() => setAccount(true)} aria-label={`Abrir perfil ${state.account ? "de" : "de demonstração de"} ${firstName(state.account?.name ?? (isCaregiver ? state.patient.caregiverName : state.patient.name))}`}>{state.account ? <span className="account-avatar"><span aria-hidden="true">{state.account.name.trim().charAt(0).toLocaleUpperCase("pt-BR")}</span><small>{firstName(state.account.name)}</small></span> : <Portrait name={isCaregiver ? state.patient.caregiverName : state.patient.name} role={state.role} />}</button>}</header>
     {state ? <>
       <div className="app-frame"><nav className="main-nav" aria-label="Navegação principal" data-parity-anchor="navigation"><div className="nav-items"><button aria-current={section === "today" ? "page" : undefined} className={section === "today" ? "active" : ""} onClick={() => setSection("today")}><CalendarDotsIcon size={23} /><span>{isCaregiver ? "Hoje" : "Meu dia"}</span></button><button aria-current={section === "plan" ? "page" : undefined} className={section === "plan" ? "active" : ""} onClick={() => setSection("plan")}><FileTextIcon size={23} /><span>Plano</span>{state.plan.status === "draft" && <span className="nav-mark" />}</button><button aria-current={section === "history" ? "page" : undefined} className={section === "history" ? "active" : ""} onClick={() => setSection("history")}><ClockCounterClockwiseIcon size={23} /><span>Histórico</span></button></div></nav>
       <main id="main-content" className={`main-content section-${section}`}>
@@ -155,9 +204,10 @@ export default function Home() {
         {section === "plan" && <PlanPanel state={state} run={run} busy={!!busy} onImport={importDocument} />}
         {section === "history" && <History state={state} />}
       </main></div>
-      {account && <Modal title="Perfis de demonstração" onClose={() => setAccount(false)}><div className="stack"><div className="notice"><UsersIcon size={25} /><div><strong>{isCaregiver ? state.patient.caregiverName : state.patient.name} · {isCaregiver ? "cuidadora" : "paciente"}</strong><p>Você está explorando um perfil fictício. Esta demonstração não cria uma conta pessoal.</p></div></div><button className="button primary" disabled={!!busy} onClick={() => void startDemo(state.plan.status === "active" ? "ready" : "setup", otherRole, state.demoId)}><ArrowsClockwiseIcon size={20} />Ver demonstração como {isCaregiver ? state.patient.name : state.patient.caregiverName}</button><div className="share-box"><h3>Demonstração em outra sessão</h3><p className="muted">Qualquer pessoa com este link pode acessar a demonstração e seus registros. Use apenas dados e documentos fictícios.</p><label>Link do outro perfil de demonstração<input readOnly value={otherLink} onFocus={(event) => event.target.select()} /></label><button className="button secondary" onClick={async () => { try { await navigator.clipboard.writeText(otherLink); setCopied(true); } catch { setCopied(false); } }}><CopyIcon size={19} />{copied ? "Link copiado" : "Copiar link"}</button></div><div className="divider" /><p className="small-note">Explore uma rotina pronta ou prepare um plano com documentos fictícios.</p><div className="button-row"><button className="button secondary" disabled={!!busy} onClick={() => void startDemo("ready", state.role)}>Explorar rotina de demonstração</button><button className="button secondary" disabled={!!busy} onClick={() => void startDemo("setup", "caregiver")}>Preparar plano de demonstração</button></div></div></Modal>}
+      {account && (state.account ? <Modal title="Sua conta" onClose={() => setAccount(false)}><div className="stack"><div className="notice"><UsersIcon size={25} /><div><strong>{state.account.name} · cuidador</strong><p className="account-email">{state.account.email}</p></div></div><p className="small-note">Seu plano e seus registros ficam nesta conta. Use dados fictícios durante a avaliação.</p><button className="button secondary" disabled={!!busy} onClick={() => void logout()}>{busy ? <Busy>Saindo…</Busy> : "Sair da conta"}</button></div></Modal> : <Modal title="Perfis de demonstração" onClose={() => setAccount(false)}><div className="stack"><div className="notice"><UsersIcon size={25} /><div><strong>{isCaregiver ? state.patient.caregiverName : state.patient.name} · {isCaregiver ? "cuidadora" : "paciente"}</strong><p>Você está explorando um perfil fictício. Esta demonstração não cria uma conta pessoal.</p></div></div><button className="button primary" disabled={!!busy} onClick={() => void startDemo(state.plan.status === "active" ? "ready" : "setup", otherRole, state.demoId)}><ArrowsClockwiseIcon size={20} />Ver demonstração como {isCaregiver ? state.patient.name : state.patient.caregiverName}</button><div className="share-box"><h3>Demonstração em outra sessão</h3><p className="muted">Qualquer pessoa com este link pode acessar a demonstração e seus registros. Use apenas dados e documentos fictícios.</p><label>Link do outro perfil de demonstração<input readOnly value={otherLink} onFocus={(event) => event.target.select()} /></label><button className="button secondary" onClick={async () => { try { await navigator.clipboard.writeText(otherLink); setCopied(true); } catch { setCopied(false); } }}><CopyIcon size={19} />{copied ? "Link copiado" : "Copiar link"}</button></div><div className="divider" /><p className="small-note">Explore uma rotina pronta ou prepare um plano com documentos fictícios.</p><div className="button-row"><button className="button secondary" disabled={!!busy} onClick={() => void startDemo("ready", state.role)}>Explorar rotina de demonstração</button><button className="button secondary" disabled={!!busy} onClick={() => void startDemo("setup", "caregiver")}>Preparar plano de demonstração</button></div><div className="divider" /><button className="button secondary" disabled={!!busy} onClick={() => void logout()}>Sair da demonstração</button></div></Modal>)}
+
       {voice && <Modal title="Registrar por voz" variant="voice-dialog" onClose={() => setVoice(false)}><VoicePanel state={state} onStateChange={receive} onClose={() => setVoice(false)} /></Modal>}
-    </> : <main className="entry-page"><div className="entry-copy"><span className="eyebrow">Cuidado que aproxima</span><h1>Conheça uma rotina<br />de demonstração.</h1><p>Explore o dia de Helena ou acompanhe o cuidado como Marina, em uma demonstração com dados fictícios.</p><div className="entry-promise"><ShieldCheckIcon size={21} />Orientações conferidas. Registros compartilhados.</div></div><section className="entry-card card"><h2>Escolha um perfil fictício</h2><p className="muted">Veja a demonstração como paciente ou cuidadora.</p><div className="role-options"><button className={entryRole === "patient" ? "role-option selected" : "role-option"} aria-pressed={entryRole === "patient"} onClick={() => setEntryRole("patient")}><span className="icon-disc"><HandHeartIcon size={32} /></span><span><strong>Helena · paciente</strong><small>Ver o dia e registrar a rotina</small></span><CheckCircleIcon className="role-check" size={23} /></button><button className={entryRole === "caregiver" ? "role-option caregiver selected" : "role-option caregiver"} aria-pressed={entryRole === "caregiver"} onClick={() => setEntryRole("caregiver")}><span className="icon-disc blue"><UsersIcon size={32} /></span><span><strong>Marina · cuidadora</strong><small>Preparar o plano e acompanhar</small></span><CheckCircleIcon className="role-check" size={23} /></button></div>{failure && <p className="error-message" role="alert">{failure.message}</p>}<button className="button primary" disabled={!!busy} onClick={() => void startDemo("ready", entryRole)}>{busy ? <Busy>Iniciando…</Busy> : <>Explorar rotina de demonstração<ArrowRightIcon size={20} /></>}</button><button className="button secondary" disabled={!!busy} onClick={() => void startDemo("setup", "caregiver")}><FileTextIcon size={20} />Preparar plano de demonstração</button><p className="small-note">Esta demonstração não cria uma conta pessoal. Use apenas dados e documentos fictícios.</p></section></main>}
+    </> : <AccessPanel busy={!!busy} error={failure?.message ?? null} onRetry={failure?.session ? failure.retry : undefined} onClearError={() => setFailure(null)} onDemo={(role) => startDemo("ready", role)} onAuthenticate={authenticate} />}
   </div></ActionFeedbackContext.Provider></ActionErrorContext.Provider>;
 }
 

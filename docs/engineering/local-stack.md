@@ -58,9 +58,20 @@ sequenceDiagram
 
 A voz pode registrar tarefa feita/não feita, pouco/suficiente/muito sono, alimentação completa/parcial/ausente e pedido de apoio. Uma pergunta, intenção futura ou referência ambígua não autoriza registro. A aplicação pausa o microfone enquanto a proposta aguarda confirmação. Cancelar não grava; repetir a mesma decisão não abre outra proposta. Relatos de alimentação preservam os dados de sono e humor do mesmo dia.
 
+- [Instalação do Next.js](https://nextjs.org/docs/app/getting-started/installation)
+- [GPT-6.1 Sol](https://developers.openai.com/api/docs/models/gpt-6.1-sol)
+- [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)
+- [Entrada de imagens](https://developers.openai.com/api/docs/guides/images-vision)
+- [GPT-Live e Decisions](https://developers.openai.com/api/docs/guides/decisions-voice)
+
+## Contas no MVP de avaliação
+
+A entrada oferece o caso pronto de demonstração e uma conta nova com um plano vazio. A conta nova tem o papel fixo de cuidador; autenticação, sessão e vínculo com seu caso são validados no servidor. As sessões de demonstração continuam separadas das contas, e conhecer um identificador de caso não permite abrir um caso de conta pelo endpoint de demonstração.
+
+Os dados são locais a esta instalação. Cadastro, login, saída e retorno à sessão fazem parte desse recorte; confirmação de e-mail, recuperação de senha e convites entre contas ficam para uma evolução. A publicação ainda exige persistência adequada ao ambiente de hospedagem.
 ## Limites desta versão
 
-As identidades e casos são sintéticos. Entrar por um link de caso é uma conveniência de desenvolvimento, não autenticação de produção. O servidor aplica papéis e isolamento entre casos, mas ainda faltam contas reais e convites seguros.
+A demonstração usa identidades e casos sintéticos. Contas têm autenticação e isolamento do plano; o vínculo por convite entre duas contas ainda não está implementado.
 
 Para publicar, é preciso definir banco compartilhado e armazenamento privado persistente. SQLite em disco efêmero de funções não atende a esse requisito. Não há fila offline, push, aplicativo nativo, HealthKit ou mudança de tratamento pela IA.
 
