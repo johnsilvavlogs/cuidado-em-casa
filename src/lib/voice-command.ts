@@ -6,14 +6,14 @@ const supported = new Set(["mark_done", "mark_not_done", "request_help", "sleep_
 /** A completed decision proposes a change. Only an explicit confirmation may submit it. */
 export function readVoiceCommand(message: unknown, requestId: string): VoiceCommand | null {
   if (!message || typeof message !== "object") return null;
-  const value = message as { type?: string; delegation_id?: string; event?: { type?: string; decision?: { id?: string; answers?: { name?: string; choice?: string }[] } } };
+  const value = message as { type?: string; event_id?: string; delegation_id?: string; event?: { type?: string; decision?: { id?: string; answers?: { name?: string; choice?: string }[] } } };
   if (value.type !== "decision.event" || value.event?.type !== "decision.completed") return null;
   const decision = value.event.decision;
   const action = decision?.answers?.find(answer => answer.name === "action")?.choice;
   if (!action || !supported.has(action)) return null;
   const taskId = decision?.answers?.find(answer => answer.name === "task")?.choice || "none";
   if ((action === "mark_done" || action === "mark_not_done") && taskId === "none") return null;
-  return { action, taskId, delegationId: value.delegation_id ?? null, decisionId: decision?.id ?? requestId, requestId };
+  return { action, taskId, delegationId: value.delegation_id ?? null, decisionId: value.event_id ?? decision?.id ?? requestId, requestId };
 }
 
 export function voiceCommandLabel(command: VoiceCommand, state: CareState): string {
