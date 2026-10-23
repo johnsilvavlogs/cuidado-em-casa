@@ -110,7 +110,12 @@ export function itemBlockers(item: DraftItem, state: StoredState): string[] {
   if (item.category === "medication" && !validPeriod(item.schedule?.period)) blockers.push("Confira o início e o término do medicamento, ou confirme que a orientação não define término.");
   if (Object.values(item.fields).some((field) => field.state === "ambiguous" || field.state === "illegible")) blockers.push("Há um campo ambíguo ou ilegível.");
   if (!item.source.quote?.trim()) blockers.push("Informe a transcrição da fonte deste cuidado.");
-  if (state.document && (item.source.documentId !== state.document.id || !item.source.page || (state.document.pageCount !== null && item.source.page > state.document.pageCount))) blockers.push("Confira a página de origem deste cuidado.");
+  if (state.document) {
+    const page = item.source.page;
+    const missingPage = state.document.mimeType !== "text/plain" && page === null;
+    const invalidPage = page !== null && (page < 1 || !Number.isInteger(page) || (state.document.pageCount !== null && page > state.document.pageCount));
+    if (item.source.documentId !== state.document.id || missingPage || invalidPage) blockers.push("Confira a página de origem deste cuidado.");
+  }
   return blockers;
 }
 
