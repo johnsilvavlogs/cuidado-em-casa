@@ -1,0 +1,70 @@
+{
+  "synthetic": true,
+  "dataset": "red-receitas-v2",
+  "files": [
+    {
+      "case_id": "ORT01",
+      "patient": "Marina Duarte Falcão",
+      "file": "receitas/01_marina_duarte_falcao.pdf",
+      "format": "pdf",
+      "sha256": "2f98874823c8e823a794c9f64a37684eeabf915e9569e1e15548f5d49ef58937",
+      "bytes": 66365
+    },
+    {
+      "case_id": "ORT02",
+      "patient": "Rafael Nogueira Lins",
+      "file": "receitas/02_rafael_nogueira_lins.pdf",
+      "format": "pdf",
+      "sha256": "fcae7c7ca88553e81b52a1837a050b85acd0b48cc1e54815eafc177441ffdb51",
+      "bytes": 66159
+    },
+    {
+      "case_id": "ORT03",
+      "patient": "Helena Costa Valença",
+      "file": "receitas/03_helena_costa_valenca.pdf",
+      "format": "pdf",
+      "sha256": "c25d67e752f6be854969993142a418236acf868013e552847134cbee4a261f2a",
+      "bytes": 2677230
+    },
+    {
+      "case_id": "ORT04",
+      "patient": "Bruno Almeida Tavares",
+      "file": "receitas/04_bruno_almeida_tavares.jpg",
+      "format": "jpg",
+      "sha256": "8a7c769098a2b723a369dc4ed73e2615d078a0a7aba8b5b8d4f1d580f34de9ca",
+      "bytes": 529715
+    },
+    {
+      "case_id": "PSI01",
+      "patient": "Camila Ribeiro Noronha",
+      "file": "receitas/05_camila_ribeiro_noronha.pdf",
+      "format": "pdf",
+      "sha256": "e060a4f26855d8e944db8356eee78b65fcbaa371f2e4f2eb505adff99446505c",
+      "bytes": 66216
+    },
+    {
+      "case_id": "PSI02",
+      "patient": "Lucas Martins Belmonte",
+      "file": "receitas/06_lucas_martins_belmonte.jpg",
+      "format": "jpg",
+      "sha256": "c505949fb6fd8bb9569c66a9dd2b5ec81398a6743a7128d8959ac28747326db8",
+      "bytes": 168778
+    },
+    {
+      "case_id": "PSI03",
+      "patient": "Beatriz Moreira Valim",
+      "file": "receitas/07_beatriz_moreira_valim.jpg",
+      "format": "jpg",
+      "sha256": "af9d81b6892d22b5953858c2bd638abfda2875ee32e13039a845182d29cb9a80",
+      "bytes": 568870
+    },
+    {
+      "case_id": "PSI04",
+      "patient": "André Carvalho Siqueira",
+      "file": "receitas/08_andre_carvalho_siqueira.jpg",
+      "format": "jpg",
+      "sha256": "46bc888b006914d484ebc965f211f818517a9561aa2b969f170898bd6abcdd68",
+      "bytes": 582763
+    }
+  ]
+}
