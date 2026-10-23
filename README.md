@@ -1,0 +1,36 @@
+# Cuidado em Casa
+
+Web app para uma pessoa cuidada e um cuidador organizarem orientações recebidas, acompanharem a rotina e pedirem ajuda. Inclui as visões de paciente e cuidador, importação e revisão de documentos, registros compartilhados e integração de voz com OpenAI. A validação dos fluxos continua em desenvolvimento.
+
+## Rodar localmente
+
+Use Node.js 26.4.0 (versão em `.nvmrc`) e npm 11.17.0 para reproduzir o ambiente verificado. Use a chave `OPENAI_API_KEY` já disponível no ambiente do servidor. Se preferir um arquivo local, use `.env.local`, que está excluído do Git. Nunca coloque a chave em uma variável `NEXT_PUBLIC_*`.
+
+```sh
+npm ci
+npm run doctor
+npm run dev
+```
+
+Abra [localhost:3000](http://localhost:3000). Escolha uma rotina pronta ou prepare um novo plano. `/api/health` confirma que o servidor responde.
+
+```sh
+npm run check          # lint, TypeScript e build
+npm run check:openai   # uma chamada curta e cobrada à API, sem dados pessoais
+```
+
+O [guia para outra máquina](docs/engineering/run-on-another-machine.md) inclui instalação, execução e como fixar um commit.
+
+## Referências para implementação
+
+- [PRD e escopo](docs/product/prd.md)
+- [Fluxo e decisões de produto](docs/product/direction.md)
+- [Wireframes e imagens](docs/design/README.md)
+- [Stack e próximos passos técnicos](docs/engineering/local-stack.md)
+- [Documentos sintéticos de teste](testes/README.md)
+
+## Stack preparada
+
+Next.js com App Router, React, TypeScript e Tailwind CSS. Route Handlers mantêm as chamadas à OpenAI no servidor. O SDK oficial da OpenAI e Zod atendem à saída estruturada; PDF.js está instalado para o visualizador. SQLite via libSQL permite começar localmente sem provisionar outro serviço. As versões exatas estão em `package.json` e `package-lock.json`.
+
+O MVP usa um único cuidador, confirmação humana por item e relatos opcionais de sono, alimentação e bem-estar. Dados da demonstração devem ser fictícios. As limitações e verificações da versão publicada estão descritas no PR correspondente.
