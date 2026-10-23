@@ -1,3 +1,4 @@
+import { hasExecutableTimes, timeBlocker, withProposedTimes } from "../schedule-times";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { isCalendarDate, scheduledOnDate, validPeriod, periodLabel, hasReviewedSchedule, validRecurrence, recurrenceLabel } from "../schedule-period";
@@ -43,6 +44,7 @@ const recurrenceSchema = z.discriminatedUnion("kind", [
 ]).refine(validRecurrence);
 const scheduleSchema = z.object({
   times: z.array(z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)).max(24).refine((v) => new Set(v).size === v.length),
+  timeOrigin: z.enum(["source", "suggested", "caregiver"]).optional(),
   priority: z.enum(["important", "normal"]),
   toleranceMinutes: z.number().int().min(0).max(24 * 60),
   period: periodSchema.optional(),
@@ -76,6 +78,7 @@ const actionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("update_item"), itemId: id, title: text(200), instruction: text(8_000), fields: fieldsSchema, questions: questionsSchema, schedule: scheduleSchema.optional(), requestId }).strict(),
   z.object({ type: z.literal("add_item"), item: itemSchema, requestId }).strict(),
   z.object({ type: z.literal("confirm_item_schedule"), itemId: id, schedule: scheduleSchema, requestId }).strict(),
+  z.object({ type: z.literal("confirm_item_times"), itemId: id, times: scheduleSchema.shape.times, requestId }).strict(),
   z.object({ type: z.literal("confirm_item_period"), itemId: id, period: periodSchema, requestId }).strict(),
   z.object({ type: z.literal("confirm_item"), itemId: id, requestId }).strict(),
   z.object({ type: z.literal("confirm_items"), itemIds: z.array(id).min(1).max(150).refine(ids => new Set(ids).size === ids.length), requestId }).strict(),
@@ -145,12 +148,15 @@ export function ensureTodayTasks(state: StoredState, now: Date): boolean {
   const tasks = state.tasks as StoredTask[];
   let changed = false;
   for (const item of state.plan.items) {
-    if (!scheduledOnDate(item, date)) continue;
-    // Only explicit caregiver schedules create times; clinical frequencies are never converted.
-    const times = item.schedule?.times.length ? item.schedule.times : ["A combinar"];
+    if (!scheduledOnDate(item, date) || !hasExecutableTimes(item)) continue;
+    const times = item.schedule!.times;
     times.forEach((time, index) => {
       const taskId = `${date}:${item.id}:${index}`;
-      if (tasks.some((task) => task.id === taskId)) return;
+      const existing = tasks.find((task) => task.id === taskId);
+      if (existing) {
+        if (existing.status === "pending" && !/^([01]\d|2[0-3]):[0-5]\d$/.test(existing.time)) { existing.time = time; changed = true; }
+        return;
+      }
       tasks.push({ id: taskId, referenceDate: date, itemId: item.id, title: item.title, instruction: item.instruction, time, status: "pending", priority: item.schedule?.priority ?? "normal", toleranceMinutes: item.schedule?.toleranceMinutes ?? 0, recordedAt: null });
       changed = true;
     });
@@ -173,7 +179,7 @@ export function applyAction(state: StoredState, role: Role, action: CareAction, 
       if (!task) throw new CareError("Tarefa não encontrada neste cuidado.", 404);
       assertReferenceDate(task.referenceDate, now);
       const item = state.plan.items.find((entry) => entry.id === task.itemId);
-      if (task.status === "pending" && (!item || !scheduledOnDate(item, task.referenceDate))) throw new CareError("Esta tarefa está fora do período ou dos dias conferidos. Consulte o plano de cuidado.", 409);
+      if (task.status === "pending" && (!item || (!scheduledOnDate(item, task.referenceDate) || !hasExecutableTimes(item)))) throw new CareError("Esta tarefa está fora do período ou dos dias conferidos. Consulte o plano de cuidado.", 409);
       const informedAt = action.informedAt ?? at;
       if (new Date(informedAt).getTime() > now.getTime() + 60_000) throw new CareError("O horário informado não pode estar no futuro.");
       const previous = task.status;
@@ -230,6 +236,19 @@ export function applyAction(state: StoredState, role: Role, action: CareAction, 
       ensureTodayTasks(state, now);
       return;
     }
+    case "confirm_item_times": {
+      requireCaregiver(role);
+      requireActive(state);
+      const item = state.plan.items.find(entry => entry.id === action.itemId);
+      if (!item || item.schedule?.times.length) throw new CareError("Somente horários ausentes de um plano antigo podem ser completados.", 409);
+      const candidate = { ...item, schedule: { priority: "normal" as const, toleranceMinutes: 30, ...item.schedule, times: action.times, timeOrigin: "caregiver" as const } };
+      const blocker = timeBlocker(candidate);
+      if (blocker) throw new CareError(blocker, 409);
+      item.schedule = candidate.schedule;
+      appendEvent(state, role, at, `Cuidador conferiu os horários de “${item.title}”: ${action.times.join(", ")}. Orientação original preservada.`);
+      ensureTodayTasks(state, now);
+      return;
+    }
     case "confirm_item_period": {
       requireCaregiver(role);
       requireActive(state);
@@ -250,13 +269,14 @@ export function applyAction(state: StoredState, role: Role, action: CareAction, 
       const item = state.plan.items.find((entry) => entry.id === action.itemId);
       if (!item) throw new CareError("Cuidado não encontrado neste plano.", 404);
       Object.assign(item, { title: action.title, instruction: action.instruction, fields: action.fields, questions: action.questions, ...(action.schedule ? { schedule: action.schedule } : {}), confirmed: false });
+      Object.assign(item, withProposedTimes(item));
       state.plan.sourceReviewed = false;
       appendEvent(state, role, at, `Cuidador editou “${item.title}”. Confirmação revogada; a fonte precisa ser conferida novamente.`);
       return;
     }
     case "add_item": {
       if (state.plan.items.length >= 150) throw new CareError("Limite de cuidados atingido.");
-      const item = structuredClone(action.item);
+      const item = withProposedTimes(structuredClone(action.item));
       item.id = randomUUID();
       item.confirmed = false;
       if (state.document && item.source.documentId !== state.document.id) throw new CareError("A origem deve pertencer ao documento deste plano.");

@@ -1,5 +1,7 @@
 "use client";
 
+import { hasExecutableTimes, isReferenceCare } from "@/lib/schedule-times";
+
 import { useId, useState, type FormEvent } from "react";
 import { ArrowRightIcon, BedIcon, BellRingingIcon, BowlFoodIcon, CaretDownIcon, CheckCircleIcon, CheckIcon, ClockIcon, FileTextIcon, HandHeartIcon, InfoIcon, MicrophoneIcon, PencilSimpleIcon, PhoneIcon, SirenIcon, SmileyIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import type { CareState, CheckIn, DraftItem, TaskOccurrence } from "@/lib/contracts";
@@ -18,7 +20,7 @@ export default function DailyCare({ state, run, busy, onVoice, onHistory }: Prop
   const [correcting, setCorrecting] = useState<TaskOccurrence | null>(null);
   const [source, setSource] = useState<DraftItem | null>(null);
   const isCaregiver = state.role === "caregiver";
-  const pendingPeriods = state.plan.items.filter((item) => !hasReviewedSchedule(item));
+  const pendingPeriods = state.plan.items.filter((item) => !hasReviewedSchedule(item) || (!isReferenceCare(item) && !hasExecutableTimes(item)));
   const registered = state.tasks.filter((task) => task.status !== "pending").length;
   const latestCheckIn = state.checkIns.find((entry) => !entry.referenceDate || entry.referenceDate === todayString());
   const openHelp = state.helpRequests.filter((help) => help.status === "open");

@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { ArrowRightIcon, CheckCircleIcon, CheckIcon, CircleIcon, FileArrowUpIcon, FileTextIcon, PencilSimpleIcon, PlusIcon, ShieldCheckIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import type { CareState, DraftItem, CareField, SchedulePeriod, ScheduleRecurrence } from "@/lib/contracts";
+import { hasExecutableTimes, isReferenceCare, proposeTimes, timeBlocker } from "@/lib/schedule-times";
 import { batchConfirmationBlocker } from "@/lib/contracts";
 import { periodLabel, validPeriod, hasReviewedSchedule, recurrenceLabel, weekdayLabels } from "@/lib/schedule-period";
 import DocumentViewer from "./document-viewer";
@@ -24,7 +25,7 @@ export default function PlanPanel({ state, run, busy, onImport }: Props) {
   const isActive = state.plan.status === "active";
   const confirmed = state.plan.items.filter((item) => item.confirmed).length;
   const unresolvedCount = state.plan.unresolved.length + state.plan.items.reduce((n, item) => n + item.questions.length + Object.values(item.fields).filter((f) => f.state === "ambiguous" || f.state === "illegible").length, 0);
-  const periodsPending = state.plan.items.filter((item) => !hasReviewedSchedule(item));
+  const periodsPending = state.plan.items.filter((item) => !hasReviewedSchedule(item) || (!isReferenceCare(item) && !hasExecutableTimes(item)));
   const canActivate = state.plan.items.length > 0 && confirmed === state.plan.items.length && unresolvedCount === 0 && periodsPending.length === 0 && state.plan.sourceReviewed;
   const visibleWarnings = state.plan.warnings.map((warning) => confirmed === 0 ? warning : warning.replace(/(?:[;:]\s*)?\bnenhum (?:item|campo)(?:\s*(?:\/|ou|e)\s*(?:item|campo))?\s+(?:(?:est[aá]|foi)\s+)?confirmad[oa]s?\.?/gi, "").trim()).filter(Boolean);
   const batchItems = state.plan.items.filter(item => !item.confirmed && !batchConfirmationBlocker(item, state.document));
@@ -68,7 +69,7 @@ export default function PlanPanel({ state, run, busy, onImport }: Props) {
     {!isActive && isCaregiver && state.plan.items.length > 0 && <button className={`source-confirm card ${state.plan.sourceReviewed ? "checked" : ""}`} onClick={() => void run({ type: "confirm_source_pages" }, "Conferência de todas as páginas registrada.")} disabled={busy || state.plan.sourceReviewed}>{state.plan.sourceReviewed ? <CheckCircleIcon size={24} /> : <CircleIcon size={24} />}<span>Revisei todas as páginas e incluí as orientações que faltavam.</span></button>}
     {state.plan.items.length > 0 ? <section className="stack-sm"><div className="section-heading small"><h3>{isActive ? `${state.plan.items.length} cuidados no plano` : "Confira cada cuidado"}</h3>{!isActive && <span className="muted">{confirmed} de {state.plan.items.length} confirmados</span>}</div>
       {!isActive && isCaregiver && batchItems.length > 0 && <div className="card stack-sm"><button type="button" className="button primary" disabled={busy || !state.plan.sourceReviewed || state.plan.unresolved.length > 0} onClick={() => void run({ type: "confirm_items", itemIds: batchItems.map(item => item.id) }, `${batchItems.length} ${batchItems.length === 1 ? "cuidado confirmado" : "cuidados confirmados"} com a fonte.`)}><CheckCircleIcon size={21} />Confirmar {batchItems.length} {batchItems.length === 1 ? "item conferido" : "itens conferidos"}</button><p className="small-note">Os itens com dúvidas continuam pendentes.{!state.plan.sourceReviewed ? " Revise todas as páginas e marque a conferência acima para continuar." : state.plan.unresolved.length > 0 ? " Esclareça as pendências gerais antes de confirmar em lote." : ""}</p></div>}
-      {state.plan.items.map((item) => <button className={`card plan-item ${item.confirmed ? "confirmed" : ""}`} key={item.id} onClick={() => setReview(item)}><div className="plan-item-top"><span className="eyebrow">{categoryLabels[item.category]}</span><span className={`badge ${item.confirmed ? "badge-green" : "badge-amber"}`}>{item.confirmed ? <CheckCircleIcon size={15} /> : <CircleIcon size={15} />}{item.confirmed ? "Conferido" : "A conferir"}</span></div><h3>{careText(item.title)}</h3><p>{careText(item.instruction)}</p>{item.schedule?.period && validPeriod(item.schedule.period) && <p className="small-note">Período: {periodLabel(item.schedule.period)}</p>}{item.category === "medication" && !validPeriod(item.schedule?.period) && <p className="warning-text">Período a conferir</p>}{item.schedule?.recurrence && <p className="small-note">Agenda: {recurrenceLabel(item.schedule.recurrence)}</p>}{item.category !== "medication" && !hasReviewedSchedule(item) && <p className="warning-text">Dias da rotina a conferir</p>}{item.questions.length > 0 && <p className="warning-text"><WarningCircleIcon size={17} />{item.questions.length} dúvida(s) neste cuidado</p>}<span className="item-action">{isActive ? "Ver orientação e fonte" : "Revisar com a fonte"}<ArrowRightIcon size={18} /></span></button>)}
+      {state.plan.items.map((item) => <button className={`card plan-item ${item.confirmed ? "confirmed" : ""}`} key={item.id} onClick={() => setReview(item)}><div className="plan-item-top"><span className="eyebrow">{categoryLabels[item.category]}</span><span className={`badge ${item.confirmed ? "badge-green" : "badge-amber"}`}>{item.confirmed ? <CheckCircleIcon size={15} /> : <CircleIcon size={15} />}{item.confirmed ? "Conferido" : "A conferir"}</span></div><h3>{careText(item.title)}</h3><p>{careText(item.instruction)}</p>{item.schedule?.period && validPeriod(item.schedule.period) && <p className="small-note">Período: {periodLabel(item.schedule.period)}</p>}{item.category === "medication" && !validPeriod(item.schedule?.period) && <p className="warning-text">Período a conferir</p>}{item.schedule?.recurrence && <p className="small-note">Agenda: {recurrenceLabel(item.schedule.recurrence)}</p>}{item.category !== "medication" && !hasReviewedSchedule(item) && <p className="warning-text">Dias da rotina a conferir</p>}{!isReferenceCare(item) && item.schedule?.times.length ? <p className="small-note">Horários: {item.schedule.times.join(", ")}{item.schedule.timeOrigin === "suggested" ? " · sugestão de rotina" : ""}</p> : !isReferenceCare(item) && <p className="warning-text">Horários a conferir</p>}{item.questions.length > 0 && <p className="warning-text"><WarningCircleIcon size={17} />{item.questions.length} dúvida(s) neste cuidado</p>}<span className="item-action">{isActive ? "Ver orientação e fonte" : "Revisar com a fonte"}<ArrowRightIcon size={18} /></span></button>)}
       {!isActive && isCaregiver && <button className="button secondary" onClick={() => setAdding(true)}><PlusIcon size={20} />Adicionar orientação que faltou</button>}
     </section> : !isCaregiver && <EmptyState icon={<FileTextIcon size={30} />} title="Ainda não há um plano ativo">Você e seu cuidador verão as mesmas orientações aprovadas.</EmptyState>}
     {!isActive && isCaregiver && state.plan.items.length > 0 && <section className="card activation-card"><div className="card-heading"><span className="icon-disc"><ShieldCheckIcon size={26} /></span><div><h3>Pronto para compartilhar?</h3><p className="muted">O plano fica fixo depois da ativação.</p></div></div>
@@ -88,7 +89,8 @@ function ReviewDialog({ item, state, busy, run, onClose }: { item: DraftItem; st
   const [instruction, setInstruction] = useState(item.instruction);
   const [fields, setFields] = useState<Record<string, CareField>>(structuredClone(item.fields));
   const [questions, setQuestions] = useState(item.questions.join("\n"));
-  const [times, setTimes] = useState(item.schedule?.times.join(", ") ?? "");
+  const initialProposal = proposeTimes(item);
+  const [times, setTimes] = useState(item.schedule?.times.length ? item.schedule.times.join(", ") : initialProposal.times.join(", "));
   const [priority, setPriority] = useState<"normal" | "important">(item.schedule?.priority ?? "normal");
   const [tolerance, setTolerance] = useState(item.schedule?.toleranceMinutes ?? 30);
   const [periodMode, setPeriodMode] = useState<"unset" | "finite" | "ongoing">(item.schedule?.period ? item.schedule.period.endDate === null ? "ongoing" : "finite" : "unset");
@@ -103,6 +105,9 @@ function ReviewDialog({ item, state, busy, run, onClose }: { item: DraftItem; st
   const freshItem = state.plan.items.find((candidate) => candidate.id === item.id) ?? item;
   const legacyPeriodReview = state.role === "caregiver" && state.plan.status === "active" && freshItem.category === "medication" && !validPeriod(freshItem.schedule?.period);
   const legacyScheduleReview = state.role === "caregiver" && state.plan.status === "active" && freshItem.category !== "medication" && !hasReviewedSchedule(freshItem);
+  const legacyTimeReview = state.role === "caregiver" && state.plan.status === "active" && !isReferenceCare(freshItem) && !freshItem.schedule?.times.length;
+  const timesEditable = editable || legacyTimeReview;
+  const timeOrigin = times === (freshItem.schedule?.times.length ? freshItem.schedule.times.join(", ") : initialProposal.times.join(", ")) ? freshItem.schedule?.timeOrigin ?? initialProposal.origin : "caregiver";
   const agendaEditable = editable || legacyScheduleReview;
   const periodEditable = editable || legacyPeriodReview || (legacyScheduleReview && !validPeriod(freshItem.schedule?.period));
   const period: SchedulePeriod | undefined = periodMode === "unset" ? undefined : { startDate, endDate: periodMode === "finite" ? endDate : null };
@@ -118,7 +123,13 @@ function ReviewDialog({ item, state, busy, run, onClose }: { item: DraftItem; st
     if (item.category !== "medication" && !hasReviewedSchedule({ ...item, schedule: { times: [], priority, toleranceMinutes: tolerance, ...(period ? { period } : {}), ...(recurrence ? { recurrence } : {}) } })) return setLocalError("Confira os dias da rotina e o período, ou escolha datas específicas ou somente consulta.");
     const parsedTimes = times.split(",").map((time) => time.trim()).filter(Boolean);
     if (parsedTimes.some((time) => !/^([01]\d|2[0-3]):[0-5]\d$/.test(time))) return setLocalError("Use horários no formato 08:00, 14:00.");
-    const schedule: NonNullable<DraftItem["schedule"]> = { times: parsedTimes, priority, toleranceMinutes: tolerance, ...(period ? { period } : {}), ...(recurrence ? { recurrence } : {}) };
+    const schedule: NonNullable<DraftItem["schedule"]> = { times: parsedTimes, timeOrigin, priority, toleranceMinutes: tolerance, ...(period ? { period } : {}), ...(recurrence ? { recurrence } : {}) };
+    const timingError = timeBlocker({ ...freshItem, schedule });
+    if (timingError) return setLocalError(timingError);
+    if (legacyTimeReview && !legacyScheduleReview) {
+      if (await run({ type: "confirm_item_times", itemId: item.id, times: parsedTimes }, "Horários conferidos. A rotina foi atualizada.")) onClose();
+      return;
+    }
     if (legacyScheduleReview) {
       if (await run({ type: "confirm_item_schedule", itemId: item.id, schedule }, "Agenda conferida. As tarefas seguem os dias confirmados.")) onClose();
       return;
@@ -141,6 +152,16 @@ function ReviewDialog({ item, state, busy, run, onClose }: { item: DraftItem; st
         </div>
       </div>
       <div className="review-extra stack">
+      <fieldset className="stack-sm"><legend>Horários da rotina</legend>
+        {isReferenceCare({ ...freshItem, schedule: { ...freshItem.schedule!, recurrence } }) ? <p className="small-note">Cuidado eventual ou de consulta. A orientação permanece no plano, sem tarefa obrigatória.</p> : <>
+          <p className="small-note">{timeOrigin === "source" ? "Horários identificados na orientação. Confira com a fonte." : timeOrigin === "suggested" ? initialProposal.note : "Horários ajustados pelo cuidador para organizar a rotina."}</p>
+          <label>Horários da rotina<input value={times} onChange={(event) => setTimes(event.target.value)} placeholder="08:00, 14:00" readOnly={!timesEditable} /></label>
+          <p className="small-note">Confirmar este cuidado também adota os horários exibidos. Eles não alteram a dose, a frequência ou as condições da orientação.</p>
+          {legacyTimeReview && <p className="warning-text">Este plano antigo está sem horário. Confira a sugestão para retomar as tarefas; nada muda antes da sua confirmação.</p>}
+          {legacyTimeReview && !legacyPeriodReview && !legacyScheduleReview && <button type="submit" className="button primary" disabled={busy}>Conferi os horários com a fonte</button>}
+        </>}
+      </fieldset>
+
       {item.category !== "medication" && <fieldset className="stack-sm"><legend>Dias da rotina</legend>
         <p className="small-note">Confira a frequência na fonte. Se a orientação disser 2 sessões por semana, combine os dias; o aplicativo não escolhe dias nem cria tarefas diárias automaticamente.</p>
         {legacyScheduleReview && <p className="warning-text">A agenda deste plano antigo ainda não foi conferida. Complete os dias para gerar tarefas; os registros anteriores permanecem.</p>}
@@ -157,8 +178,8 @@ function ReviewDialog({ item, state, busy, run, onClose }: { item: DraftItem; st
       </fieldset>
         {legacyScheduleReview && <button type="submit" className="button primary" disabled={busy}><CheckIcon size={20} />Conferi a agenda com a fonte</button>}
         {legacyPeriodReview && <button type="submit" className="button primary" disabled={busy || !validPeriod(period)}><CheckIcon size={20} />Conferi o período com a fonte</button>}
-        {editable && <><p className="small-note" data-parity-anchor="support-note">{dirty ? "Salve suas alterações antes de confirmar." : "Confira todos os campos. Se houver dúvida, mantenha o cuidado pendente."}</p><button type="button" className="button primary" disabled={dirty || busy || freshItem.confirmed || !hasReviewedSchedule(freshItem)} onClick={() => void run({ type: "confirm_item", itemId: item.id }, "Cuidado conferido com a fonte.")}>{freshItem.confirmed ? <><CheckCircleIcon size={20} />Cuidado confirmado</> : <><CheckIcon size={20} />Conferi e confirmo este cuidado</>}</button></>}
-        <details className="review-details"><summary>Conferir todos os campos e horários</summary><div className="stack"><label>Nome do cuidado<input value={title} onChange={(event) => setTitle(event.target.value)} required readOnly={!editable} /></label><label>Orientação completa<textarea value={instruction} onChange={(event) => setInstruction(event.target.value)} rows={3} required readOnly={!editable} /></label>{fieldEntries.filter(([key]) => key !== primaryField?.[0]).map(renderField)}<fieldset className="stack-sm"><legend>Organização da rotina</legend><p className="small-note">Preserve a frequência prescrita. Os horários abaixo organizam o acompanhamento.</p><label>Horários da rotina<input value={times} onChange={(event) => setTimes(event.target.value)} placeholder="08:00, 14:00" readOnly={!editable} /></label><div className="form-columns"><label>Prioridade<select value={priority} onChange={(event) => setPriority(event.target.value as "normal" | "important")} disabled={!editable}><option value="normal">Normal</option><option value="important">Importante</option></select></label><label>Tolerância em minutos<input type="number" min="0" max="1440" value={tolerance} onChange={(event) => setTolerance(Number(event.target.value))} readOnly={!editable} /></label></div></fieldset></div></details>
+        {editable && <><p className="small-note" data-parity-anchor="support-note">{dirty ? "Salve suas alterações antes de confirmar." : "Confira todos os campos. Se houver dúvida, mantenha o cuidado pendente."}</p><button type="button" className="button primary" disabled={dirty || busy || freshItem.confirmed || !hasReviewedSchedule(freshItem) || !!timeBlocker(freshItem)} onClick={() => void run({ type: "confirm_item", itemId: item.id }, "Cuidado conferido com a fonte.")}>{freshItem.confirmed ? <><CheckCircleIcon size={20} />Cuidado confirmado</> : <><CheckIcon size={20} />Conferi e confirmo este cuidado</>}</button></>}
+        <details className="review-details"><summary>Conferir todos os campos e horários</summary><div className="stack"><label>Nome do cuidado<input value={title} onChange={(event) => setTitle(event.target.value)} required readOnly={!editable} /></label><label>Orientação completa<textarea value={instruction} onChange={(event) => setInstruction(event.target.value)} rows={3} required readOnly={!editable} /></label>{fieldEntries.filter(([key]) => key !== primaryField?.[0]).map(renderField)}<fieldset className="stack-sm"><legend>Organização da rotina</legend><p className="small-note">Preserve a frequência prescrita. Os horários abaixo organizam o acompanhamento.</p><div className="form-columns"><label>Prioridade<select value={priority} onChange={(event) => setPriority(event.target.value as "normal" | "important")} disabled={!editable}><option value="normal">Normal</option><option value="important">Importante</option></select></label><label>Tolerância em minutos<input type="number" min="0" max="1440" value={tolerance} onChange={(event) => setTolerance(Number(event.target.value))} readOnly={!editable} /></label></div></fieldset></div></details>
       </div>
     </form>
   </Modal>;
