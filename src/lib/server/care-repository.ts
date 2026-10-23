@@ -47,12 +47,19 @@ function stableJson(value: unknown): string {
 
 function publicState(state: StoredState, role: Role, now: Date, account?: CareState["account"]): CareState {
   const date = dateInBrazil(now);
+  // Help remains linked to its original occurrence after it leaves today's list.
+  // Derive only from this authorized case; no migration or persisted copy is needed.
+  const taskHistory = new Map(state.tasks.map((task) => [task.id, task]));
+  const helpRequests = state.helpRequests.map((help) => {
+    const task = help.taskId ? taskHistory.get(help.taskId) : undefined;
+    return { ...help, task: task ? { itemId: task.itemId, title: task.title, instruction: task.instruction, time: task.time, referenceDate: task.referenceDate ?? null } : null };
+  });
   // Hide invalid pending occurrences without deleting the original records or audit.
   const tasks = state.tasks.filter((task) => {
     if ((task as StoredTask).referenceDate !== date) return false;
     return task.status !== "pending" || state.plan.items.some((item) => item.id === task.itemId && scheduledOnDate(item, date) && hasExecutableTimes(item));
   }).sort((a, b) => a.time.localeCompare(b.time));
-  return structuredClone({ ...state, ...(account ? { account } : {}), role, tasks });
+  return structuredClone({ ...state, ...(account ? { account } : {}), role, tasks, helpRequests });
 }
 
 /** Local persistence for isolated accounts and synthetic, shareable demo cases. */
