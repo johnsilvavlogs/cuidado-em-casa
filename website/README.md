@@ -10,7 +10,7 @@ node website/serve.mjs
 
 Abra http://127.0.0.1:4175. O servidor publica somente HTML, CSS, JavaScript e os arquivos de `assets/`; não expõe o repositório ou arquivos de ambiente.
 
-Para conectar a versão publicada ao aplicativo, preencha **somente `appUrl` em `website/config.js`** com a URL HTTPS pública verificada. Em localhost, o CTA abre `http://127.0.0.1:3000/`. Sem uma URL pública configurada, outros hosts mostram um aviso com acesso à prévia desta página. URLs inválidas não viram destinos de navegação.
+Os botões de testar usam `appUrl` em `website/config.js`, configurado para [a demonstração hospedada](https://cuidado-em-casa.johnsilvabr.chatgpt.site/play-demo). A publicação completa reúne esta página, o aplicativo em `/app` e o servidor na nuvem; veja [cloud/README.md](../cloud/README.md). O servidor estático local continua disponível para editar a apresentação.
 
 A prévia usa estado em memória compartilhado entre Helena e Marina. Propor não salva; cancelar preserva o estado; confirmar atualiza ambas as perspectivas; reiniciar restaura. Os dados somem ao recarregar. Nenhum microfone, API, conta ou armazenamento do aplicativo é acessado.
 

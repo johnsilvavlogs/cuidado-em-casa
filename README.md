@@ -2,6 +2,14 @@
 
 Web app para uma pessoa cuidada e um cuidador organizarem orientações recebidas, acompanharem a rotina e pedirem ajuda. Inclui as visões de paciente e cuidador, importação e revisão de documentos, registros compartilhados e integração de voz com OpenAI. Inclui revisão humana antes da ativação e confirmação antes de cada gravação por voz.
 
+## Usar no navegador
+
+- [Abrir a demonstração pronta](https://cuidado-em-casa.johnsilvabr.chatgpt.site/play-demo)
+- [Abrir o aplicativo](https://cuidado-em-casa.johnsilvabr.chatgpt.site/app)
+- [Conhecer o projeto](https://cuidado-em-casa.johnsilvabr.chatgpt.site)
+
+O aplicativo publicado roda nos Sites, com servidor Cloudflare Worker, banco D1 e documentos privados no R2. Não depende de computador local ligado. A configuração e a publicação estão descritas em [cloud/README.md](cloud/README.md).
+
 ## Rodar localmente
 
 Use Node.js 26.4.0 (versão em `.nvmrc`) e npm 11.17.0 para reproduzir o ambiente verificado. Use a chave `OPENAI_API_KEY` já disponível no ambiente do servidor. Se preferir um arquivo local, use `.env.local`, que está excluído do Git. Nunca coloque a chave em uma variável `NEXT_PUBLIC_*`.

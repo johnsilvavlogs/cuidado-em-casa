@@ -70,7 +70,7 @@ export class CareRepository {
   private readonly clock: () => Date;
 
   constructor(options: { dataDir?: string; now?: () => Date } = {}) {
-    this.directory = path.resolve(options.dataDir ?? path.join(process.cwd(), ".data"));
+    this.directory = path.resolve(options.dataDir ?? process.env.CARE_DATA_DIR ?? path.join(process.cwd(), ".data"));
     this.clock = options.now ?? (() => new Date());
   }
 
