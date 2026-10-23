@@ -229,3 +229,5 @@ body{background:#fcfdf9}.brand{font-size:21px;gap:7px;letter-spacing:-.6px}.bran
 .timestamp-note{display:block}
 .caregiver-view .daily-heading{height:auto}
 .help-item .timestamp-note{font-size:14px;line-height:1.5}
+
+.recurrence-days{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 16px}.recurrence-days label{display:flex;flex-direction:row;align-items:center;gap:10px;min-height:44px}.recurrence-days input[type="checkbox"]{width:22px;height:22px;min-height:22px;flex:none;accent-color:var(--green)}
