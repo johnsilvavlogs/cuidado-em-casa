@@ -1,0 +1,70 @@
+/* Mobile-only presentation. Keep the existing care and voice actions unchanged. */
+@media (max-width: 720px) {
+  .patient-view .voice-launch {
+    color: #145949;
+    background: #e6f2e9;
+    border: 1px solid #d0e4d7;
+    border-radius: 14px;
+    box-shadow: none;
+  }
+  .patient-view .voice-launch:hover:not(:disabled) { background: #daeade; }
+  .patient-view .voice-launch:focus-visible { outline-color: #176d57; }
+  .patient-view .primary-task {
+    min-height: 224px;
+    padding: 18px 16px 12px;
+    border-color: #d6e5d6;
+    border-radius: 22px;
+    background: linear-gradient(145deg, #f7fbf4, #fffefa);
+    box-shadow: 0 4px 18px #274a3410;
+  }
+  .patient-view .task-top { gap: 12px; }
+  .patient-view .task-top > svg { color: #4d7d61; }
+  .patient-view .task-kicker { color: #5b7464; }
+  .patient-view .task-top h2 {
+    font-size: 25px;
+    line-height: 31px;
+    letter-spacing: -.6px;
+    color: #143b2c;
+  }
+  .patient-view .source-button { color: #3d705b; }
+  .patient-view .primary-task > .task-actions { gap: 9px; padding-top: 12px; }
+  .patient-view .primary-task > .task-actions > .button {
+    min-height: 48px;
+    height: auto;
+    border-radius: 12px;
+  }
+  .patient-view .primary-task > .task-actions > .button.secondary {
+    background: transparent;
+    border-color: #abc9b5;
+  }
+  .patient-view .wellbeing-card {
+    height: auto;
+    min-height: 184px;
+    padding: 16px;
+    border-radius: 20px;
+    border-color: #e0e8da;
+  }
+  .patient-view .wellbeing-card > .full-width {
+    min-height: 44px;
+    margin-top: 4px;
+    font-size: 15px;
+  }
+  .patient-view .wellbeing-row small { color: #64756a; }
+  .patient-view .completed-day {
+    border-color: #d6e5d6;
+    border-radius: 22px;
+    background: #f3f8ee;
+  }
+  .patient-view .urgent-access { border-radius: 13px; }
+  .voice-panel .voice-description { color: #586f63; }
+  .voice-panel .voice-status { color: #4c6559; font-size: 13px; }
+  .voice-panel .voice-examples > p {
+    color: #64766a;
+    font-size: 14px;
+    line-height: 21px;
+    letter-spacing: 0;
+  }
+  .voice-panel .voice-example { font-size: 16px; line-height: 23px; }
+  .voice-panel .voice-record-heading small { font-size: 11px; }
+  .voice-panel .voice-privacy { color: #64786a; font-size: 12px; line-height: 18px; }
+}

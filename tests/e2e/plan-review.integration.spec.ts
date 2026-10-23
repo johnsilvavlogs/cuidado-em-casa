@@ -1,0 +1,65 @@
+import { test, expect } from "@playwright/test";
+import { randomUUID } from "node:crypto";
+import { readFile, mkdir, writeFile } from "node:fs/promises";
+import { CareRepository } from "../../src/lib/server/care-repository";
+import { dateInBrazil } from "../../src/lib/server/care-domain";
+import type { CareState, DraftItem } from "../../src/lib/contracts";
+
+const base = process.env.CARE_E2E_BASE_URL || "http://127.0.0.1:3000";
+
+test("mobile-plan-dates-single-confirm-and-bulk-activation", async ({ page }, info) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const repository = new CareRepository();
+  const session = await repository.startDemo({ scenario: "setup", role: "caregiver" });
+  const document = await repository.storeDocument(session.token, { name: "receita-teste-marina.pdf", mimeType: "application/pdf", bytes: await readFile("testes/receitas/01_marina_duarte_falcao.pdf") });
+  document.pageCount = 1;
+  const field = (value: string) => ({ value, state: "readable" as const, sourceText: value });
+  const medicine: DraftItem = { id: randomUUID(), title: "Paracetamol", category: "medication", instruction: "Tomar 1 comprimido por via oral a cada 8 horas, se houver dor, por até 3 dias.", fields: { nome: field("Paracetamol"), concentracao: field("500 mg"), dose: field("1 comprimido"), via: field("oral"), frequencia: field("a cada 8 horas"), duracao: field("até 3 dias"), condicoes: field("se houver dor") }, source: { documentId: document.id, page: 1, quote: "Paracetamol 500 mg - comprimidos. Tomar 1 comprimido por via oral a cada 8 horas, se houver dor, por até 3 dias." }, questions: [], confirmed: false };
+  const activity: DraftItem = { id: randomUUID(), title: "Elevação do pé", category: "activity", instruction: "Manter o pé elevado quando estiver em repouso.", fields: {}, source: { documentId: document.id, page: 1, quote: "Manter o pé elevado quando estiver em repouso." }, questions: [], confirmed: false };
+  const draft = await repository.importDraft(session.token, document, { items: [medicine, activity], unresolved: [], warnings: [] });
+  const second = draft.plan.items[1];
+  await repository.mutate(session.token, { type: "update_item", itemId: second.id, title: second.title, instruction: second.instruction, fields: second.fields, questions: [], schedule: { times: [], priority: "normal", toleranceMinutes: 0, recurrence: { kind: "reference" } }, requestId: randomUUID() }, { demoId: draft.demoId, role: "caregiver" });
+  await repository.close();
+  await page.goto(`${base}/?demo=${draft.demoId}&role=caregiver`);
+  await page.getByRole("navigation").getByRole("button", { name: "Plano", exact: true }).click();
+  const disclosure = page.locator('[data-plan-review="individual"]');
+  await expect(disclosure).not.toHaveAttribute("open", "");
+  await expect(page.getByText("Encontramos 2 cuidados", { exact: true })).toBeVisible();
+  await disclosure.locator("summary").click();
+  await disclosure.locator(".plan-item").filter({ hasText: "Paracetamol" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Salvar correções", exact: true })).toHaveCount(0);
+  const today = dateInBrazil(new Date());
+  const end = new Date(`${today}T12:00:00Z`); end.setUTCDate(end.getUTCDate() + 2);
+  await expect(dialog.getByLabel("Primeiro dia", { exact: true })).toHaveValue(today);
+  await expect(dialog.getByLabel("Último dia (incluído)", { exact: true })).toHaveValue(end.toISOString().slice(0, 10));
+  const readState = async () => { const response = await page.request.get(`${base}/api/state`); expect(response.status()).toBe(200); return await response.json() as CareState; };
+  expect((await readState()).plan.items[0].schedule?.period).toBeUndefined();
+  let first = true;
+  await page.route("**/api/actions", async route => {
+    if (first) { first = false; await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "Falha de teste. Tente confirmar novamente." }) }); }
+    else await route.continue();
+  });
+  await dialog.getByRole("button", { name: "Confirmar cuidado", exact: true }).click();
+  await expect(dialog.getByRole("alert")).toContainText("Falha de teste");
+  expect((await readState()).plan.items[0].confirmed).toBe(false);
+  await dialog.getByRole("button", { name: "Confirmar cuidado", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  const after = await readState();
+  expect(after.plan.items[0].confirmed).toBe(true);
+  expect(after.plan.items[0].schedule?.period).toEqual({ startDate: today, endDate: end.toISOString().slice(0, 10) });
+  expect(after.plan.items[0].instruction).toContain("se houver dor, por até 3 dias");
+  await page.unroute("**/api/actions");
+  await page.getByRole("button", { name: "Revisei todas as páginas e incluí as orientações que faltavam.", exact: true }).click();
+  await page.getByRole("button", { name: "Confirmar 1 item conferido", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Ativar plano", exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "Ativar plano", exact: true }).click();
+  await expect(page.getByText("Plano ativo", { exact: true })).toBeVisible();
+  await page.reload();
+  expect((await readState()).plan.status).toBe("active");
+  await mkdir("output/e2e/plan-review", { recursive: true });
+  await page.screenshot({ path: "output/e2e/plan-review/active.png", fullPage: false });
+  await writeFile("output/e2e/plan-review/receipt.json", JSON.stringify({ result: "passed", caseId: draft.demoId, viewport: { width: 390, height: 844 }, source: "Two explicitly transcribed synthetic fixture items, not a new extraction quality evaluation.", assertions: ["individual list starts collapsed", "three-day suggestion does not persist on open", "failed save does not confirm", "single click saves and confirms then closes", "conditional source preserved", "bulk confirmation and activation persist on reload"] }, null, 2));
+  await info.attach("plan-review", { path: "output/e2e/plan-review/receipt.json", contentType: "application/json" });
+});

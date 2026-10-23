@@ -224,7 +224,7 @@ async function recoverLostSaveResponse(page: Page, caregiver: BrowserContext, ta
     await page.screenshot({ path: resolve(reportDirectory, "recovery-saving.png"), scale: "css", animations: "disabled" });
     releaseResponse();
     await expect(page.getByRole("button", { name: "Tentar salvar de novo", exact: true })).toBeVisible();
-    await expect(page.getByRole("alert")).toHaveText("Não recebi a confirmação. Tente salvar de novo.");
+    await expect(page.locator(".voice-panel [role=alert]")).toHaveText("Não recebi a confirmação. Tente salvar de novo.");
     await expect(page.locator('.voice-panel[data-voice-state="confirming"] .voice-record')).toContainText(task.title);
     await expect(page.locator(".voice-panel .sr-only[role=status]")).toHaveCount(0);
     const afterLostResponse = await readState(caregiver);
@@ -526,7 +526,7 @@ test("real-live-webrtc-continuous-request-then-confirmed-walk", async ({ page, b
   test.skip(process.env.CARE_E2E_LIVE !== "1", "Set CARE_E2E_LIVE=1 to use the authorized real Live API.");
   const manualAcceptance = process.env.CARE_E2E_MANUAL_ACCEPT === "1";
   const recoverLostResponse = process.env.CARE_E2E_LOST_RESPONSE === "1";
-  test.setTimeout(manualAcceptance ? (recoverLostResponse ? 240_000 : 180_000) : 120_000);
+  test.setTimeout(manualAcceptance ? 600_000 : 120_000);
   await page.setViewportSize({ width: 390, height: 844 });
   await mkdir(reportDirectory, { recursive: true });
   const audioDirectory = process.env.CARE_E2E_AUDIO_DIR || "/private/tmp/cuidado-live-audio";
@@ -628,7 +628,14 @@ test("real-live-webrtc-continuous-request-then-confirmed-walk", async ({ page, b
     await expect(page.getByRole("button", { name: "Registrar outra coisa", exact: true })).toBeEnabled();
     await page.screenshot({ path: resolve(reportDirectory, "real-live-saved.png"), scale: "css", animations: "disabled" });
     passed = true;
-    if (manualAcceptance) await writeFile(resolve(reportDirectory, "manual-ready.json"), JSON.stringify({ status: "confirmed", runId: manualRunId, confirmedAt: new Date().toISOString(), caseId: initial.demoId, taskId: walk.id, persistedStatus: final.tasks.find((task) => task.id === walk.id)?.status, actionCount: requests.length }, null, 2) + "\n");
+    if (manualAcceptance) {
+      await writeFile(resolve(reportDirectory, "manual-ready.json"), JSON.stringify({ status: "saved-inspection", runId: manualRunId, confirmedAt: new Date().toISOString(), caseId: initial.demoId, taskId: walk.id, persistedStatus: final.tasks.find((task) => task.id === walk.id)?.status, actionCount: requests.length, caregiverURL: `${base}/?demo=${initial.demoId}&role=caregiver`, releaseFile: resolve(reportDirectory, "manual-release.json"), note: "Saved UI stays open until root finishes native inspection and releases this runId." }, null, 2) + "\n");
+      console.log("MANUAL_SAVED_INSPECTION", manualRunId);
+      while (true) {
+        try { if (JSON.parse(await readFile(resolve(reportDirectory, "manual-release.json"), "utf8")).runId === manualRunId) break; } catch { /* Wait for explicit root inspection release. */ }
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
   } finally {
     const events = await page.evaluate(() => (window as unknown as { __liveAudio?: { events: unknown[] } }).__liveAudio?.events ?? []).catch(() => []);
     const instructions = await readInstructionSnapshots(page).catch(() => []);
