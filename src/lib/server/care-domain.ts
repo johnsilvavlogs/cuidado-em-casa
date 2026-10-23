@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { isCalendarDate, scheduledOnDate, validPeriod, periodLabel } from "../schedule-period";
+import { isCalendarDate, scheduledOnDate, validPeriod, periodLabel, hasReviewedSchedule, validRecurrence, recurrenceLabel } from "../schedule-period";
 import type { CareAction, CareState, DraftItem, ExtractionResult, Role, TaskOccurrence } from "../contracts";
 
 export class CareError extends Error {
@@ -34,11 +34,18 @@ const periodSchema = z.object({
   startDate: z.string().refine(isCalendarDate),
   endDate: z.string().refine(isCalendarDate).nullable(),
 }).strict().refine(validPeriod, "O término deve ser igual ou posterior ao início.");
+const recurrenceSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("daily") }).strict(),
+  z.object({ kind: z.literal("reference") }).strict(),
+  z.object({ kind: z.literal("weekly"), weekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7) }).strict(),
+  z.object({ kind: z.literal("dates"), dates: z.array(z.string().refine(isCalendarDate)).min(1).max(150) }).strict(),
+]).refine(validRecurrence);
 const scheduleSchema = z.object({
   times: z.array(z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)).max(24).refine((v) => new Set(v).size === v.length),
   priority: z.enum(["important", "normal"]),
   toleranceMinutes: z.number().int().min(0).max(24 * 60),
   period: periodSchema.optional(),
+  recurrence: recurrenceSchema.optional(),
 }).strict();
 const itemSchema = z.object({
   id,
@@ -65,6 +72,7 @@ const actionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("check_in"), id: id.optional(), referenceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), sleepMinutes: z.number().int().min(0).max(24 * 60).nullable(), sleepQuality: z.enum(["low", "okay", "high"]).nullable().default(null), food: z.enum(["yes", "partial", "no"]).nullable(), mood: z.enum(["good", "okay", "bad"]).nullable(), requestId }).strict(),
   z.object({ type: z.literal("update_item"), itemId: id, title: text(200), instruction: text(8_000), fields: fieldsSchema, questions: questionsSchema, schedule: scheduleSchema.optional(), requestId }).strict(),
   z.object({ type: z.literal("add_item"), item: itemSchema, requestId }).strict(),
+  z.object({ type: z.literal("confirm_item_schedule"), itemId: id, schedule: scheduleSchema, requestId }).strict(),
   z.object({ type: z.literal("confirm_item_period"), itemId: id, period: periodSchema, requestId }).strict(),
   z.object({ type: z.literal("confirm_item"), itemId: id, requestId }).strict(),
   z.object({ type: z.literal("confirm_source_pages"), requestId }).strict(),
@@ -107,6 +115,7 @@ function requireActive(state: StoredState): void {
 
 export function itemBlockers(item: DraftItem, state: StoredState): string[] {
   const blockers = [...item.questions];
+  if (item.category !== "medication" && !hasReviewedSchedule(item)) blockers.push("Confira os dias da rotina, as datas específicas ou escolha somente consulta. Rotinas diárias e semanais precisam de período.");
   if (item.category === "medication" && !validPeriod(item.schedule?.period)) blockers.push("Confira o início e o término do medicamento, ou confirme que a orientação não define término.");
   if (Object.values(item.fields).some((field) => field.state === "ambiguous" || field.state === "illegible")) blockers.push("Há um campo ambíguo ou ilegível.");
   if (!item.source.quote?.trim()) blockers.push("Informe a transcrição da fonte deste cuidado.");
@@ -157,8 +166,9 @@ export function applyAction(state: StoredState, role: Role, action: CareAction, 
       requireActive(state);
       const task = state.tasks.find((entry) => entry.id === action.taskId) as StoredTask | undefined;
       if (!task) throw new CareError("Tarefa não encontrada neste cuidado.", 404);
+      assertReferenceDate(task.referenceDate, now);
       const item = state.plan.items.find((entry) => entry.id === task.itemId);
-      if (task.status === "pending" && (!item || !scheduledOnDate(item, task.referenceDate))) throw new CareError("Esta tarefa está fora do período conferido. Consulte o plano de cuidado.", 409);
+      if (task.status === "pending" && (!item || !scheduledOnDate(item, task.referenceDate))) throw new CareError("Esta tarefa está fora do período ou dos dias conferidos. Consulte o plano de cuidado.", 409);
       const informedAt = action.informedAt ?? at;
       if (new Date(informedAt).getTime() > now.getTime() + 60_000) throw new CareError("O horário informado não pode estar no futuro.");
       const previous = task.status;
@@ -200,6 +210,19 @@ export function applyAction(state: StoredState, role: Role, action: CareAction, 
       if (existing) Object.assign(existing, record);
       else state.checkIns.unshift(record);
       appendEvent(state, role, at, `${actor} ${existing ? "corrigiu" : "salvou"} um relato opcional de ${referenceDate}${action.sleepMinutes === null ? "; sono não informado" : `; sono informado: ${Math.floor(action.sleepMinutes / 60)}h${String(action.sleepMinutes % 60).padStart(2, "0")}`}.`);
+      return;
+    }
+    case "confirm_item_schedule": {
+      requireCaregiver(role);
+      requireActive(state);
+      const item = state.plan.items.find((entry) => entry.id === action.itemId);
+      if (!item || item.category === "medication" || hasReviewedSchedule(item)) throw new CareError("Somente a agenda ainda não conferida pode ser completada.", 409);
+      if (!hasReviewedSchedule({ ...item, schedule: action.schedule })) throw new CareError("Confira os dias e o período da rotina.", 409);
+      // Preserve already reviewed period information when completing an older plan.
+      if (validPeriod(item.schedule?.period) && JSON.stringify(item.schedule?.period) !== JSON.stringify(action.schedule.period)) throw new CareError("Preserve o período já conferido.", 409);
+      item.schedule = action.schedule;
+      appendEvent(state, role, at, `Cuidador conferiu a agenda de “${item.title}”: ${recurrenceLabel(action.schedule.recurrence!)}. Orientação original preservada.`);
+      ensureTodayTasks(state, now);
       return;
     }
     case "confirm_item_period": {

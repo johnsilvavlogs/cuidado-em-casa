@@ -13,3 +13,5 @@ body{background:#fcfdf9}.brand{font-size:21px;gap:7px;letter-spacing:-.6px}.bran
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation-duration:.01ms!important;animation-iteration-count:1!important}}
 
 .modal-feedback{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--green);padding:10px 12px;margin-bottom:16px;background:#f0f7ed;border-radius:8px}
+
+.recurrence-days{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 16px}.recurrence-days label{display:flex;flex-direction:row;align-items:center;gap:10px;min-height:44px}.recurrence-days input[type="checkbox"]{width:22px;height:22px;min-height:22px;flex:none;accent-color:var(--green)}
