@@ -9,6 +9,7 @@ import { createClient } from "@libsql/client";
 import type { CareState, DraftItem, ExtractionResult } from "../../src/lib/contracts";
 import { CareError, CareRepository } from "../../src/lib/server/care-repository";
 import { assertSameOrigin, errorResponse, readJson } from "../../src/lib/server/care-http";
+import { itemBlockers } from "../../src/lib/server/care-domain";
 
 async function fixture(t: TestContext) {
   const dataDir = await mkdtemp(path.join(os.tmpdir(), "cuidado-backend-"));
@@ -137,6 +138,40 @@ test("import strips AI confirmations and schedules, retains absence, and never i
   assert.equal(active.tasks.length, 1);
   assert.equal(active.tasks[0].time, "A combinar");
   assert.equal(active.tasks[0].priority, "normal");
+});
+
+test("pasted text without a page retains its source and can be confirmed and activated", async (t) => {
+  const { repository } = await fixture(t);
+  const caregiver = await repository.startDemo({ scenario: "setup", role: "caregiver" });
+  const quote = "Exemplo: seguir a orientação impressa três vezes ao dia.";
+  const imported = await importOne(repository, caregiver.token, {
+    items: [extractedItem({ source: { documentId: null, page: null, quote } })], unresolved: [], warnings: [],
+  });
+  assert.equal(imported.document!.mimeType, "text/plain");
+  assert.deepEqual(imported.plan.items[0].source, { documentId: imported.document!.id, page: null, quote });
+  assert.equal(Buffer.from((await repository.getDocument(caregiver.token, imported.document!.id)).bytes).toString("utf8"), quote);
+  const active = await activate(repository, caregiver.token, imported);
+  assert.equal(active.plan.status, "active");
+  assert.equal(active.plan.items[0].confirmed, true);
+  assert.deepEqual((await repository.getState(caregiver.token)).plan, active.plan);
+});
+
+test("text confirmation keeps document and quote checks, while paged sources require a valid page", async (t) => {
+  const { repository } = await fixture(t);
+  const caregiver = await repository.startDemo({ scenario: "setup", role: "caregiver" });
+  const state = await importOne(repository, caregiver.token);
+  const item = state.plan.items[0];
+  const withSource = (source: Partial<DraftItem["source"]>) => ({ ...item, source: { ...item.source, ...source } });
+  assert.deepEqual(itemBlockers(withSource({ page: null }), state), []);
+  assert.ok(itemBlockers(withSource({ page: null, documentId: randomUUID() }), state).length);
+  assert.ok(itemBlockers(withSource({ page: null, quote: " " }), state).length);
+  assert.ok(itemBlockers(withSource({ page: 2 }), state).length);
+  for (const mimeType of ["application/pdf", "image/png"]) {
+    const pagedState = { ...state, document: { ...state.document!, mimeType, pageCount: 1 } };
+    assert.ok(itemBlockers(withSource({ page: null }), pagedState).length);
+    assert.ok(itemBlockers(withSource({ page: 2 }), pagedState).length);
+    assert.deepEqual(itemBlockers(withSource({ page: 1 }), pagedState), []);
+  }
 });
 
 test("ambiguity blocks confirmation and activation; edits and imports revoke review", async (t) => {
