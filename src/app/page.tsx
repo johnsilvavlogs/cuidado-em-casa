@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRightIcon, ArrowsClockwiseIcon, CalendarDotsIcon, CheckCircleIcon, ClockCounterClockwiseIcon, CopyIcon, FileTextIcon, HandHeartIcon, ShieldCheckIcon, UsersIcon, WarningCircleIcon } from "@phosphor-icons/react";
-import type { CareAction, CareState, Role } from "@/lib/contracts";
+import type { CareAction, CareSessionContext, CareState, Role } from "@/lib/contracts";
 import DailyCare from "@/components/daily-care";
 import PlanPanel from "@/components/plan-panel";
 import VoicePanel from "@/components/voice-panel";
@@ -105,7 +105,7 @@ export default function Home() {
       try {
         const response = await fetch("/api/state", { cache: "no-store", signal: controller.signal });
         const next = await responseState(response);
-        if (currentSequence === sequence.current && !mutating.current && next.demoId === stateRef.current?.demoId) receive(next);
+        if (currentSequence === sequence.current && !mutating.current && next.demoId === stateRef.current?.demoId && next.role === stateRef.current?.role) receive(next);
       } catch (cause) { if (!(cause instanceof DOMException && cause.name === "AbortError")) setSyncError(true); }
       finally { polling = false; }
     }
@@ -115,13 +115,14 @@ export default function Home() {
   }, [state?.demoId, receive]);
 
   const run = useCallback(async (action: ActionInput, success = "Alteração salva e compartilhada.") => {
-    if (mutating.current) return false;
-    const fingerprint = JSON.stringify(action.type === "record_task" ? { type: action.type, taskId: action.taskId, status: action.status } : action);
+    if (mutating.current || !stateRef.current) return false;
+    const context: CareSessionContext = { demoId: stateRef.current.demoId, role: stateRef.current.role };
+    const fingerprint = JSON.stringify({ context, action: action.type === "record_task" ? { type: action.type, taskId: action.taskId, status: action.status } : action });
     const request = retryableAction.current?.fingerprint === fingerprint
       ? retryableAction.current.action
       : { ...action, requestId: crypto.randomUUID() } as CareAction;
     retryableAction.current = { fingerprint, action: request };
-    const result = await submit("/api/actions", request, success);
+    const result = await submit("/api/actions", { context, action: request }, success);
     if (result && retryableAction.current?.action === request) retryableAction.current = null;
     return result;
   }, [submit]);
@@ -131,7 +132,11 @@ export default function Home() {
     return () => window.clearTimeout(timer);
   }, [notice]);
 
-  const importDocument = useCallback((data: FormData) => submit("/api/import", data, "Leitura concluída. Confira cada cuidado com o original."), [submit]);
+  const importDocument = useCallback((data: FormData) => {
+    if (!stateRef.current) return Promise.resolve(false);
+    data.set("context", JSON.stringify({ demoId: stateRef.current.demoId, role: stateRef.current.role }));
+    return submit("/api/import", data, "Leitura concluída. Confira cada cuidado com o original.");
+  }, [submit]);
   const isCaregiver = state?.role === "caregiver";
   const otherRole = isCaregiver ? "patient" : "caregiver";
   const otherLink = state && typeof window !== "undefined" ? `${window.location.origin}/?demo=${encodeURIComponent(state.demoId)}&role=${otherRole}` : "";

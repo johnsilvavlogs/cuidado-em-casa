@@ -19,7 +19,10 @@ test("import rejects incompatible or malformed forms before document reading", a
   const caregiver = await demo("setup", "caregiver");
   const patient = await demo("setup", "patient");
   const active = await demo("ready", "caregiver");
+  const emptyBoundForm = new FormData();
+  emptyBoundForm.set("context", JSON.stringify({ demoId: caregiver.state.demoId, role: caregiver.state.role }));
   const cases = [
+    { name: "valid context with no source", body: emptyBoundForm, status: 400 },
     { name: "JSON content", body: "{}", type: "application/json", status: 415 },
     { name: "plain text content", body: "text", type: "text/plain", status: 415 },
     { name: "missing multipart boundary", body: "invalid", type: "multipart/form-data", status: 400 },

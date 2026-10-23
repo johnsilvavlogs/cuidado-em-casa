@@ -1,7 +1,7 @@
 import { extractDocument } from "@/lib/ai/extract";
 import { getSessionState, importDraft, storeDocument } from "@/lib/server/care-store";
 import { assertSameOrigin, errorResponse, privateHeaders } from "@/lib/server/care-http";
-import { CareError, isCareError } from "@/lib/server/care-domain";
+import { assertSessionContext, CareError, isCareError, parseSessionContext } from "@/lib/server/care-domain";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -29,6 +29,10 @@ export async function POST(request: Request) {
     } catch {
       throw new CareError("O formulário enviado é inválido. Confira o arquivo ou texto e envie novamente.");
     }
+    let contextInput: unknown;
+    try { contextInput = JSON.parse(String(form.get("context"))); } catch { contextInput = null; }
+    const context = parseSessionContext(contextInput);
+    assertSessionContext({ demoId: session.demoId, role: session.role }, context);
     const file = form.get("file");
     const text = String(form.get("text") ?? "").trim();
     let bytes: Uint8Array;
@@ -48,8 +52,8 @@ export async function POST(request: Request) {
       mimeType = "text/plain";
     }
     const extraction = await extractDocument({ filename, mimeType, ...(mimeType === "text/plain" ? { text } : { base64: Buffer.from(bytes).toString("base64") }) });
-    const document = await storeDocument({ name: filename, mimeType, bytes });
-    return Response.json(await importDraft(document, extraction), { headers: privateHeaders });
+    const document = await storeDocument({ name: filename, mimeType, bytes }, context);
+    return Response.json(await importDraft(document, extraction, context), { headers: privateHeaders });
   } catch (error) {
     if (isCareError(error)) return errorResponse(error);
     return Response.json({ error: "Não foi possível ler este documento. Tente novamente, envie uma imagem mais legível ou cadastre as orientações manualmente." }, { status: 502 });

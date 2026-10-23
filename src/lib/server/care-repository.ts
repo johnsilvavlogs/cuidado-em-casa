@@ -3,8 +3,8 @@ import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { createClient, type Client, type Transaction } from "@libsql/client";
-import type { CareState, DocumentRef, ExtractionResult, Role } from "../contracts";
-import { appendEvent, applyAction, CareError, dateInBrazil, demoSchema, ensureTodayTasks, parseAction, parseExtraction, requireCaregiver, requireDraft, type StoredState, type StoredTask } from "./care-domain";
+import type { CareSessionContext, CareState, DocumentRef, ExtractionResult, Role } from "../contracts";
+import { appendEvent, applyAction, assertSessionContext, CareError, dateInBrazil, demoSchema, ensureTodayTasks, parseAction, parseExtraction, requireCaregiver, requireDraft, type StoredState, type StoredTask } from "./care-domain";
 import { scheduledOnDate } from "../schedule-period";
 import { createDemoState, demoSource } from "./care-demo";
 
@@ -96,6 +96,12 @@ export class CareRepository {
     return { caseId: String(row.case_id), role: row.role as Role, state: JSON.parse(String(row.state_json)) as StoredState };
   }
 
+  private async boundSession(executor: SqlExecutor, token: string | undefined, expected?: CareSessionContext): Promise<Session> {
+    const session = await this.session(executor, token);
+    assertSessionContext({ demoId: session.caseId, role: session.role }, expected);
+    return session;
+  }
+
   private async save(executor: SqlExecutor, state: StoredState): Promise<void> {
     await executor.execute({ sql: "UPDATE care_cases SET state_json = ? WHERE id = ?", args: [JSON.stringify(state), state.demoId] });
   }
@@ -131,9 +137,9 @@ export class CareRepository {
     });
   }
 
-  async getState(token: string | undefined): Promise<CareState> {
+  async getState(token: string | undefined, expected?: CareSessionContext): Promise<CareState> {
     return this.transaction(async (transaction) => {
-      const { state, role } = await this.session(transaction, token);
+      const { state, role } = await this.boundSession(transaction, token, expected);
       const now = this.clock();
       if (ensureTodayTasks(state, now)) {
         state.updatedAt = now.toISOString();
@@ -144,10 +150,10 @@ export class CareRepository {
     });
   }
 
-  async mutate(token: string | undefined, input: unknown): Promise<CareState> {
+  async mutate(token: string | undefined, input: unknown, expected?: CareSessionContext): Promise<CareState> {
     const action = parseAction(input);
     return this.transaction(async (transaction) => {
-      const { caseId, state, role } = await this.session(transaction, token);
+      const { caseId, state, role } = await this.boundSession(transaction, token, expected);
       const fingerprint = hash(stableJson(action));
       const existing = await transaction.execute({ sql: "SELECT role, fingerprint FROM operations WHERE case_id = ? AND request_id = ?", args: [caseId, action.requestId] });
       const previousOperation = existing.rows[0];
@@ -186,19 +192,19 @@ export class CareRepository {
     return { id: documentId, name, mimeType, url: `/api/documents/${documentId}`, pageCount };
   }
 
-  async storeDocument(token: string | undefined, input: DocumentInput): Promise<DocumentRef> {
+  async storeDocument(token: string | undefined, input: DocumentInput, expected?: CareSessionContext): Promise<DocumentRef> {
     return this.transaction(async (transaction) => {
-      const { caseId, role, state } = await this.session(transaction, token);
+      const { caseId, role, state } = await this.boundSession(transaction, token, expected);
       requireCaregiver(role);
       requireDraft(state);
       return this.writeDocument(transaction, caseId, input, input.mimeType === "text/plain" || input.mimeType.startsWith("image/") ? 1 : null);
     });
   }
 
-  async importDraft(token: string | undefined, document: DocumentRef, extraction: ExtractionResult): Promise<CareState> {
+  async importDraft(token: string | undefined, document: DocumentRef, extraction: ExtractionResult, expected?: CareSessionContext): Promise<CareState> {
     const parsed = parseExtraction(extraction);
     return this.transaction(async (transaction) => {
-      const { caseId, state, role } = await this.session(transaction, token);
+      const { caseId, state, role } = await this.boundSession(transaction, token, expected);
       requireCaregiver(role);
       requireDraft(state);
       const stored = await transaction.execute({ sql: "SELECT id, name, mime_type, page_count FROM documents WHERE id = ? AND case_id = ?", args: [document.id, caseId] });
