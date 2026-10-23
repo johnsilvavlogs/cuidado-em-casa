@@ -1,3 +1,4 @@
+import { hasExecutableTimes, withProposedTimes } from "../schedule-times";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -34,7 +35,7 @@ function publicState(state: StoredState, role: Role, now: Date, account?: CareSt
   // Hide invalid pending occurrences without deleting the original records or audit.
   const tasks = state.tasks.filter((task) => {
     if ((task as StoredTask).referenceDate !== date) return false;
-    return task.status !== "pending" || state.plan.items.some((item) => item.id === task.itemId && scheduledOnDate(item, date));
+    return task.status !== "pending" || state.plan.items.some((item) => item.id === task.itemId && scheduledOnDate(item, date) && hasExecutableTimes(item));
   }).sort((a, b) => a.time.localeCompare(b.time));
   return structuredClone({ ...state, ...(account ? { account } : {}), role, tasks });
 }
@@ -286,7 +287,7 @@ export class CareRepository {
       if (pageCount !== null && pageCount > 10_000) throw new CareError("Quantidade de páginas inválida.");
       const before = structuredClone(state);
       state.document = { id: document.id, name: String(row.name), mimeType: String(row.mime_type), pageCount, url: `/api/documents/${document.id}` };
-      state.plan = { status: "draft", items: parsed.items.map((item) => ({ ...item, id: randomUUID(), confirmed: false, schedule: undefined, source: { ...item.source, documentId: document.id } })), sourceReviewed: false, unresolved: parsed.unresolved.length || parsed.items.length ? parsed.unresolved : ["Nenhum cuidado foi identificado. Confira a leitura ou envie outra fonte."], warnings: parsed.warnings };
+      state.plan = { status: "draft", items: parsed.items.map((item) => withProposedTimes({ ...item, id: randomUUID(), confirmed: false, schedule: undefined, source: { ...item.source, documentId: document.id } })), sourceReviewed: false, unresolved: parsed.unresolved.length || parsed.items.length ? parsed.unresolved : ["Nenhum cuidado foi identificado. Confira a leitura ou envie outra fonte."], warnings: parsed.warnings };
       state.tasks = [];
       appendEvent(state, role, this.clock().toISOString(), `Novo documento recebido: “${state.document.name}”. O rascunho precisa de conferência humana; nenhuma orientação foi ativada.`);
       await transaction.execute({ sql: "UPDATE documents SET page_count = ? WHERE id = ?", args: [pageCount, document.id] });
