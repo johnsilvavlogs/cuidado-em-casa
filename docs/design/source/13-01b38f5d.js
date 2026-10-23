@@ -1,0 +1,3 @@
+editor.setCurrentPage('page:care-import-v4');
+editor.updateShape({id:'shape:import-architecture',type:'geo',props:{h:170,richText:helpers.toRichText('MVP WEB · Next.js + React + TypeScript · Tailwind CSS\nServidor no mesmo projeto · SDK OpenAI · Responses + saída estruturada\nPDF.js + OCR com coordenadas → revisão humana → versão ativa\nNavegador no celular e desktop. PWA opcional; iOS/Android nativos depois.\nSono manual opcional. HealthKit não é dependência.')}});
+editor.selectNone();editor.zoomToBounds({x:0,y:0,w:1120,h:2160});return {page:editor.getCurrentPageId(),shapeCount:editor.getCurrentPageShapes().length};

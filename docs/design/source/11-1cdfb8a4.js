@@ -1,0 +1,1 @@
+editor.updateShape({id:'shape:clarify-highlight',type:'geo',y:296,props:{h:29}});editor.updateShapes(['upload-button','review-button','clarify-save'].map(id=>({id:'shape:'+id,type:'geo',props:{labelColor:'green'}})));return {fixed:true};

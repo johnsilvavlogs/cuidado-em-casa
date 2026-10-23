@@ -1,0 +1,226 @@
+{
+  "files": [
+    {
+      "path": "docs/design/images/revisao-documentos.png",
+      "sha256": "cd13bebdb1424f199565f22ef1c7ab621db8bfc1143c998c1a464801a74f32fd",
+      "bytes": 488488,
+      "status": "current-reference"
+    },
+    {
+      "path": "docs/design/images/rotina-sono-manual.png",
+      "sha256": "c1a5039befcf0fba18efbb79510a711126d4b3aa5918e341facdf276b884f624",
+      "bytes": 1602170,
+      "status": "current-reference"
+    },
+    {
+      "path": "docs/design/images/sono-manual-opcional.png",
+      "sha256": "58ea5e144cb5cfb0faee18b0b98686761a09f1b6c97baf32502bce65b4ccdc01",
+      "bytes": 1461891,
+      "status": "current-reference"
+    },
+    {
+      "path": "docs/design/archive/cuidado-em-casa-01-visoes-com-voz.png",
+      "sha256": "978388e4a89d5e6e03b54d646ce079476720b571f13e5e6d645711ccea3a3707",
+      "bytes": 1597099,
+      "status": "historical-reference"
+    },
+    {
+      "path": "docs/design/archive/cuidado-em-casa-01-visoes.png",
+      "sha256": "24a527fff0e3ba1e036074bd0721af239d5a448fee0d41418d58820b040c24d5",
+      "bytes": 1489337,
+      "status": "historical-reference"
+    },
+    {
+      "path": "docs/design/archive/cuidado-em-casa-02-entrada-plano.png",
+      "sha256": "cd67e28dd17987b2e1d83dff6b8de3e8a3d8925355920043b3c0f670f8000a59",
+      "bytes": 1595483,
+      "status": "historical-reference"
+    },
+    {
+      "path": "docs/design/archive/cuidado-em-casa-03-registro-ajuda.png",
+      "sha256": "3cf8c44ccd3ea7280fbbe41af6b6e5ccbcdb9cac32e9cfa049aff2c990ad28af",
+      "bytes": 1536604,
+      "status": "historical-reference"
+    },
+    {
+      "path": "docs/design/archive/cuidado-em-casa-04-voz.png",
+      "sha256": "db849a5eaccc47021bb5c57bb842f252131596d61ecca3f5a67c2b0473f4195f",
+      "bytes": 1509848,
+      "status": "historical-reference"
+    },
+    {
+      "path": "docs/design/archive/painel-core-v3.png",
+      "sha256": "ac92cb66612f8373fca529b78cf79741c37eb224dd38e5ec00780ec99e0457cc",
+      "bytes": 1605724,
+      "status": "historical-reference"
+    },
+    {
+      "path": "docs/design/archive/painel-help-v3.png",
+      "sha256": "098648761f20f5c9c00703206b35d6e8f8cfb0372caec4e3922f92e7f39e7e0a",
+      "bytes": 1591965,
+      "status": "historical-reference"
+    },
+    {
+      "path": "docs/design/archive/painel-voice-v3.png",
+      "sha256": "c25b923472eca55ce132be860dfecb56399c529c8cc2879daf82c26d7a0d7c65",
+      "bytes": 1618213,
+      "status": "historical-reference"
+    },
+    {
+      "path": "docs/design/archive/tela-01-enviar-orientacoes.png",
+      "sha256": "625d8827580d92d18ccfdb9695708aec97433a303ce3c3f196c77807299cc888",
+      "bytes": 1255846,
+      "status": "historical-reference"
+    },
+    {
+      "path": "docs/design/archive/tela-02-cadastrar-tarefa.png",
+      "sha256": "b206c3b871afc4e08600b2b24d4831f2b9101b96dec4ff416b2591676b1c8502",
+      "bytes": 1154995,
+      "status": "historical-reference"
+    },
+    {
+      "path": "docs/design/archive/tela-03-revisar-versao.png",
+      "sha256": "4d16d9ee7788430ba80b59fe6494ac5cf279f697feea3f54d2af721609390941",
+      "bytes": 1224721,
+      "status": "historical-reference"
+    },
+    {
+      "path": "docs/design/archive/tela-04-rede-de-cuidado.png",
+      "sha256": "6fdb38813cb1916182451263a78fc1a8b525ecd73cd24ae4de151e6aaf27d5b1",
+      "bytes": 1220656,
+      "status": "historical-reference"
+    },
+    {
+      "path": "docs/design/archive/tela-05-convidar-cuidador.png",
+      "sha256": "5332b2da2442a678a598aed534777d3e0c12ff6ef6b8375f49ce476d5858c9e8",
+      "bytes": 1496223,
+      "status": "historical-reference"
+    },
+    {
+      "path": "docs/design/archive/tela-06-convite-indisponivel.png",
+      "sha256": "661ff07ba2904517f4e4e7ba0870efce2d06e58d7cdef8e14baa806852fd6fcd",
+      "bytes": 1256121,
+      "status": "historical-reference"
+    },
+    {
+      "path": "docs/design/archive/tela-07-corrigir-registro.png",
+      "sha256": "7c5f8fb2d07ce22e3148b96c4474dc592d3b77c74a633b2ecb82ed276b685382",
+      "bytes": 1506533,
+      "status": "historical-reference"
+    },
+    {
+      "path": "docs/design/archive/tela-08-bem-estar-healthkit.png",
+      "sha256": "bcaeda70f4b108b68a49dbaf7d82806dd71800e2af9b38d63071a2f585b31ae1",
+      "bytes": 1284676,
+      "status": "historical-reference"
+    },
+    {
+      "path": "docs/design/archive/tela-09-sincronizacao-pendente.png",
+      "sha256": "4ac04abe2726b2e4a8573253fd860e5c201242683694701da4e071bfb45f7f92",
+      "bytes": 1533000,
+      "status": "historical-reference"
+    },
+    {
+      "path": "docs/design/archive/tela-10-coordenar-ajuda.png",
+      "sha256": "ffd91783b1b79ae1faa2a26ae7c4efa905db81831aba6f5735e0b3da2c38a534",
+      "bytes": 1246559,
+      "status": "historical-reference"
+    },
+    {
+      "path": "docs/design/archive/tela-11-pendencia-cuidador.png",
+      "sha256": "c994c9bacdd0be86e990737aaf6aecb0ec26712bd7d9524e7f4ca4c3be77742a",
+      "bytes": 1246287,
+      "status": "historical-reference"
+    },
+    {
+      "path": "docs/design/archive/tela-12-voz-indisponivel.png",
+      "sha256": "6e04980f75450164a59ae3ff5366cc3521282310371c23fca85517ad4d2ebc99",
+      "bytes": 1522515,
+      "status": "historical-reference"
+    },
+    {
+      "path": "docs/design/archive/tela-13-aceitar-convite.png",
+      "sha256": "c49620dd4055c0dcc29089331af24046df442c50f64b4690553fc445027113d3",
+      "bytes": 1248324,
+      "status": "historical-reference"
+    },
+    {
+      "path": "docs/design/archive/tela-14-ativar-plano.png",
+      "sha256": "c1a57881e7009580c2275562e913d8136a9b14482e98d38a8727f59ef389a368",
+      "bytes": 1283093,
+      "status": "historical-reference"
+    }
+  ],
+  "historical_tldraw_edits": [
+    {
+      "path": "source/01-319c269a.js",
+      "created_at": "2026-10-23T14:31:18.643Z",
+      "historical": true
+    },
+    {
+      "path": "source/02-74902bd7.js",
+      "created_at": "2026-10-23T14:32:03.304Z",
+      "historical": true
+    },
+    {
+      "path": "source/03-0299ff2c.js",
+      "created_at": "2026-10-23T14:32:21.081Z",
+      "historical": true
+    },
+    {
+      "path": "source/04-e0d91713.js",
+      "created_at": "2026-10-23T14:32:58.514Z",
+      "historical": true
+    },
+    {
+      "path": "source/05-d6461e00.js",
+      "created_at": "2026-10-23T14:39:35.787Z",
+      "historical": true
+    },
+    {
+      "path": "source/06-67fe38f9.js",
+      "created_at": "2026-10-23T14:54:50.662Z",
+      "historical": true
+    },
+    {
+      "path": "source/07-ac4e7d6a.js",
+      "created_at": "2026-10-23T15:03:29.304Z",
+      "historical": true
+    },
+    {
+      "path": "source/08-9bd00f2d.js",
+      "created_at": "2026-10-23T15:09:21.578Z",
+      "historical": true
+    },
+    {
+      "path": "source/09-a5db4fc9.js",
+      "created_at": "2026-10-23T15:11:18.739Z",
+      "historical": true
+    },
+    {
+      "path": "source/10-436d2ce8.js",
+      "created_at": "2026-10-23T15:18:26.468Z",
+      "historical": true
+    },
+    {
+      "path": "source/11-1cdfb8a4.js",
+      "created_at": "2026-10-23T15:19:40.502Z",
+      "historical": true
+    },
+    {
+      "path": "source/12-e889401b.js",
+      "created_at": "2026-10-23T15:21:03.105Z",
+      "historical": true
+    },
+    {
+      "path": "source/13-01b38f5d.js",
+      "created_at": "2026-10-23T15:22:58.489Z",
+      "historical": true
+    },
+    {
+      "path": "source/14-2dc4cd66.js",
+      "created_at": "2026-10-23T15:25:05.168Z",
+      "historical": true
+    }
+  ]
+}
