@@ -55,4 +55,5 @@ test("stale imports and voice setup are rejected before document storage or prov
   const patient = await demo("patient");
   const otherPatient = await demo("patient");
   assert.equal((await post("/api/voice/session", { context: { demoId: patient.state.demoId, role: "patient" }, sdp: "v=0\r\n" }, otherPatient.cookie)).status, 409);
+  assert.equal((await post("/api/voice/interpret", { context: { demoId: patient.state.demoId, role: "patient" }, transcript: "Preciso de ajuda" }, otherPatient.cookie)).status, 409);
 });
