@@ -224,3 +224,8 @@ body{background:#fcfdf9}.brand{font-size:21px;gap:7px;letter-spacing:-.6px}.bran
 @media(min-width:721px){
  .review-main-form .review-form .field-group{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);height:auto;min-height:132px;align-content:start;justify-content:normal;gap:8px;padding:12px}
 }
+
+/* Server timestamps wrap as prose and expand the caregiver heading on mobile. */
+.timestamp-note{display:block}
+.caregiver-view .daily-heading{height:auto}
+.help-item .timestamp-note{font-size:14px;line-height:1.5}

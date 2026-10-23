@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 
 const base = process.env.TEST_BASE_URL;
@@ -14,6 +15,7 @@ test("voice rejects invalid requests with client errors before calling the provi
   assert.equal(demo.status, 200);
   const cookie = demo.headers.get("set-cookie")!.split(";")[0];
   const initial = await demo.json();
+  const context = { demoId: initial.demoId, role: initial.role };
   const cases = [
     { name: "null", body: "null", status: 400 },
     { name: "malformed JSON", body: "{", status: 400 },
@@ -21,6 +23,10 @@ test("voice rejects invalid requests with client errors before calling the provi
     { name: "primitive", body: '"text"', status: 400 },
     { name: "missing SDP", body: "{}", status: 400 },
     { name: "invalid SDP", body: '{"sdp":"bad"}', status: 400 },
+    { name: "valid context with invalid SDP", body: JSON.stringify({ context, sdp: "bad" }), status: 400 },
+    { name: "valid SDP without context", body: JSON.stringify({ sdp: "v=0\r\n" }), status: 400 },
+    { name: "different case", body: JSON.stringify({ context: { ...context, demoId: randomUUID() }, sdp: "v=0\r\n" }), status: 409 },
+    { name: "different role", body: JSON.stringify({ context: { ...context, role: "caregiver" }, sdp: "v=0\r\n" }), status: 409 },
     { name: "unsupported content type", body: "{}", type: "text/plain", status: 415 },
     { name: "forbidden origin", body: "{}", origin: "https://other.invalid", status: 403 },
     { name: "cross-site fetch", body: "{}", site: "cross-site", status: 403 },
