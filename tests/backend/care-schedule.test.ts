@@ -33,6 +33,8 @@ test("future physiotherapy and return need reviewed dates; weekly care never bec
   assert.equal(hasReviewedSchedule(physio), false);
   assert.equal(scheduledOnDate(physio, "2026-10-23"), false, "source text alone never creates today's task");
   await assert.rejects(repository.mutate(session.token, { type: "confirm_item", itemId: physio.id, requestId: req() }), /dias da rotina/);
+  await repository.mutate(session.token, { type: "confirm_source_pages", requestId: req() });
+  await assert.rejects(repository.mutate(session.token, { type: "confirm_items", itemIds: [physio.id, followup.id], requestId: req() }), /dias da rotina/);
   for (const [item, schedule] of [
     [physio, { ...times, period: { startDate: "2026-10-26", endDate: "2026-11-15" }, recurrence: { kind: "weekly", weekdays: [1, 4] } }],
     [followup, { ...times, recurrence: { kind: "dates", dates: ["2026-10-30"] } }],
