@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { CareState } from "@/lib/contracts";
+import type { CareAction, CareSessionContext, CareState } from "@/lib/contracts";
 
 import { confirmedVoiceAction, readVoiceCommand, voiceCommandLabel, type VoiceCommand } from "@/lib/voice-command";
 
@@ -21,6 +21,7 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
   const attempt = useRef(0);
   const pendingRef = useRef<VoiceCommand | null>(null);
   const latestState = useRef(state);
+  const pendingSubmission = useRef<{ action: CareAction; context: CareSessionContext } | null>(null);
   useEffect(() => { latestState.current = state; }, [state]);
   useEffect(() => {
     pendingRef.current = pending;
@@ -45,6 +46,8 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
   async function connect() {
     stop();
     const thisAttempt = attempt.current;
+    const connectedState = latestState.current;
+    const context: CareSessionContext = { demoId: connectedState.demoId, role: connectedState.role };
     setError(""); setStatus("connecting"); sessionReady.current = false;
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error("O microfone não está disponível neste navegador. Use os botões da rotina.");
@@ -72,11 +75,17 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
           if (message.type === "error") { setError("A sessão de voz encontrou um erro. Você pode continuar pelos botões."); setStatus("error"); stop(); }
           const proposed = readVoiceCommand(message, crypto.randomUUID());
           if (proposed && !pendingRef.current && !acceptedDecisions.current.has(proposed.decisionId)) {
-            const action = confirmedVoiceAction(proposed, latestState.current);
+            const currentState = latestState.current;
+            if (currentState.demoId !== context.demoId || currentState.role !== context.role) {
+              stop(); setStatus("error"); setError("A sessão mudou. Feche a voz e atualize a página antes de continuar.");
+              return;
+            }
+            const action = confirmedVoiceAction(proposed, currentState);
             if (!action) setError("Não consegui identificar um único cuidado. Diga o nome e o horário, ou use os botões.");
             else {
               acceptedDecisions.current.add(proposed.decisionId);
               pendingRef.current = proposed;
+              pendingSubmission.current = { action, context };
               microphone.current?.getAudioTracks().forEach(track => { track.enabled = false; });
               setPending(proposed);
             }
@@ -88,7 +97,7 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
         const timeout = window.setTimeout(resolve, 5000);
         pc.addEventListener("icegatheringstatechange", () => { if (pc.iceGatheringState === "complete") { window.clearTimeout(timeout); resolve(); } });
       });
-      const response = await fetch("/api/voice/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sdp: pc.localDescription?.sdp }) });
+      const response = await fetch("/api/voice/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sdp: pc.localDescription?.sdp, context }) });
       const result = await response.json();
       if (attempt.current !== thisAttempt) return;
       if (!response.ok) throw new Error(result.error || "Não foi possível abrir a sessão de voz.");
@@ -108,14 +117,15 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
   async function confirm() {
     if (!pending || saving) return;
     setSaving(true); setError("");
-    const action = confirmedVoiceAction(pending, latestState.current);
-    if (!action) { setError("O cuidado não está mais disponível. Feche e confira a rotina."); setSaving(false); return; }
+    const submission = pendingSubmission.current;
+    if (!submission) { setError("O cuidado não está mais disponível. Feche e confira a rotina."); setSaving(false); return; }
     try {
-      const response = await fetch("/api/actions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(action) });
+      const response = await fetch("/api/actions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(submission) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "O registro não foi salvo.");
       onStateChange(result);
       if (channel.current?.readyState === "open" && pending.delegationId) channel.current.send(JSON.stringify({ type: "session.commentary.append", delegation_id: pending.delegationId, content: "A pessoa confirmou na tela. O servidor salvou o registro com sucesso. Informe isso de forma breve, sem acrescentar orientação médica." }));
+      pendingSubmission.current = null;
       setPending(null); setTranscript(""); setError("Registro salvo e compartilhado com seu cuidador.");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "O registro não foi salvo. Tente novamente."); }
     finally { setSaving(false); }

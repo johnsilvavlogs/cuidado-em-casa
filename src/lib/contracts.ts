@@ -1,4 +1,5 @@
 export type Role = "patient" | "caregiver";
+export type CareSessionContext = { demoId: string; role: Role };
 export type ReadingState = "readable" | "ambiguous" | "illegible" | "missing";
 export type CareField = { value: string | null; state: ReadingState; sourceText: string | null };
 export type DraftItem = {
