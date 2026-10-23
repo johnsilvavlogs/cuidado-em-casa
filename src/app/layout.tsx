@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Cuidado em Casa · Desenvolvimento",
-  description: "Ambiente local de desenvolvimento do Cuidado em Casa.",
+  title: "Cuidado em Casa",
+  description: "Orientações conferidas, rotina compartilhada e apoio de quem cuida de você.",
   robots: { index: false, follow: false },
 };
 

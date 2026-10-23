@@ -50,5 +50,7 @@ Estas versões guardam a exploração anterior. Incluem telas com vários cuidad
 - [Quadro original no tldraw](https://www.tldraw.com/f/cx_sqUW3D1tTCo5FQg8VA)
 - [Índice de arquivos e hashes SHA-256](assets.json)
 - [Sequência de importação no tldraw](source/importacao.js)
+- [Cópia nativa de recuperação, com imagens incorporadas](cuidado-em-casa-recuperado.tldr)
 - A pasta `source/` preserva os trechos textuais de construção e revisão dos wireframes. São registros históricos, dependentes do contexto do editor, e não um script único pronto para executar.
 - As imagens completas ficam neste repositório e não dependem do carregamento do quadro externo.
+- Em 23/10, a thread de recuperação observou que as páginas sumiam ao recarregar o quadro online. A cópia local foi preservada; ela não comprova que a sincronização remota foi corrigida.
