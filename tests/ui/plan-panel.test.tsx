@@ -66,9 +66,9 @@ test("successful confirmation saves first, confirms once, then closes", async ()
 test("failed save never confirms and failed confirmation keeps the dialog open", async () => {
   const calls: string[] = [];
   assert.equal(await completeCareConfirmation({ save: async () => false, confirm: async () => { calls.push("confirm"); return true; }, onClose: () => calls.push("close") }), false);
-  assert.deepEqual(calls, []);
+  assert.equal(calls.length, 0);
   assert.equal(await completeCareConfirmation({ confirm: async () => false, onClose: () => calls.push("close") }), false);
-  assert.deepEqual(calls, []);
+  assert.equal(calls.length, 0);
 });
 
 test("review exposes one confirmation action and no separate save button, including collapsed content", () => {
@@ -82,4 +82,17 @@ test("review exposes one confirmation action and no separate save button, includ
   const reviewed = renderToStaticMarkup(createElement(ReviewDialog, { item: confirmed, state, busy: false, run: async () => true, onClose: () => {} }));
   assert.match(reviewed, /Voltar para os cuidados/);
   assert.doesNotMatch(reviewed, /Confirmar cuidado/);
+});
+
+
+test("previously confirmed care with missing agenda returns to the pending review list", () => {
+  const state = draft();
+  state.plan.items.forEach(item => { item.confirmed = true; });
+  state.plan.sourceReviewed = true;
+  state.plan.items[0].schedule = undefined;
+  const html = render(state);
+  assert.match(html, /2 de 3 conferidos/);
+  assert.match(html, /1 cuidado precisa de revisão individual/);
+  assert.doesNotMatch(html, /Todos os cuidados estão conferidos/);
+  assert.match(activateTag(html), /disabled/);
 });

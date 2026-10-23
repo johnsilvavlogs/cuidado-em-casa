@@ -3,8 +3,9 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
-import type { CareState, ExtractionResult } from "../../src/lib/contracts";
+import type { CareState, DraftItem, ExtractionResult } from "../../src/lib/contracts";
 import { CareRepository } from "../../src/lib/server/care-repository";
+import { dateInBrazil } from "../../src/lib/server/care-domain";
 
 test.use({ trace: "off", actionTimeout: 15_000, navigationTimeout: 20_000 }); // Per-state trace chunks below own their lifecycle.
 
@@ -106,14 +107,14 @@ for (const display of displays) {
         await close(page); checks.push(check("return to next care", true, await page.locator('[data-parity-anchor="next-care"]').isVisible())); return checks;
       }, async () => [check("same document after reload", initial.document!.id, (await state(context)).document!.id)]);
 
-      // Root is redesigning voice in parallel. Re-enable only after its new controls are ready.
+      // Dedicated microphone-permission run; real voice action proof has its own suite.
       if (process.env.CARE_PARITY_VOICE_READY === "1") await proof.record("voice_open", "Real headless browser has no granted microphone permission; no voice transport is mocked.", { target: { role: "button", name: "Falar com assistente" }, kind: "click", description: "Open voice and attempt actual microphone access; inspect explicit permission/device failure." }, async () => {
         await page.getByRole("button", { name: "Falar com assistente", exact: true }).click();
-        await page.getByRole("button", { name: "Conectar microfone", exact: true }).click();
-        const alert = page.getByRole("alert"); await expect(alert).toBeVisible();
+        await page.getByRole("button", { name: "Começar a falar", exact: true }).click();
+        const alert = page.locator(".voice-panel [role=alert]"); await expect(alert).toBeVisible();
         const text = await alert.innerText(); expect(text).toMatch(/microfone|Requested device|Permission|not found|denied|dispositivo/i);
         const checks = [check("explicit microphone/device failure displayed", true, text.length > 0), check("voice did not record task", 1, (await state(context)).revision)];
-        await page.getByRole("button", { name: "Fechar e usar os botões", exact: true }).click(); return checks;
+        await page.getByRole("button", { name: "Prefiro usar os botões", exact: true }).click(); return checks;
       }, async () => [check("manual controls after reload", true, await page.getByRole("button", { name: "Falar com assistente", exact: true }).isVisible())]);
 
       await proof.record("wellbeing_open", "Optional wellbeing has no report.", { target: { role: "button", name: "Informar como estou" }, kind: "click", description: "Open optional form and return without saving." }, async () => {
@@ -289,29 +290,99 @@ for (const display of displays) {
     await json(resolve(root, "source-fixture", `provenance-${display.id}.json`), { cached_extractions: [{ path: "output/ai/01_marina_duarte_falcao.pdf.json", sha256: hash(cachedBytes), source_page: 1 }, { path: "output/ai/02_rafael_nogueira_lins.pdf.json", sha256: hash(secondCachedBytes), source_page: 2 }], original_pdf: original, original_sha256: hash(await readFile(original)), method: "Replay of two previously recorded real Responses results; original contains their two existing synthetic fixture PDF pages concatenated with pdfunite. All 14 extracted care items are retained with page remapping. Injected ambiguity on first dose exercises the gate. This is not a new model extraction or accuracy evidence." });
     const current = await start(browser, display, "caregiver", "setup", draft.demoId); const { page, context } = current;
     const proof = new Proof(page, context, "document-review", display);
-    const openReview = async () => { await plan(page); await page.locator(".plan-item").first().click(); await expect(page.getByRole("dialog")).toBeVisible(); await expect(page.getByText("Página 1 de 2", { exact: true })).toBeVisible(); };
-    const dose = () => page.getByLabel("Dose", { exact: true });
-    const reading = () => page.locator('[data-parity-anchor="field-editor"] select');
+    const openReview = async (index = 0) => {
+      await plan(page);
+      const list = page.locator('[data-plan-review="individual"]');
+      if (await list.getAttribute("open") === null) await list.locator("summary").click();
+      const item = draft.plan.items[index];
+      if ((await state(context)).plan.items.find(candidate => candidate.id === item.id)?.confirmed) {
+        const confirmed = list.locator(".plan-secondary-disclosure");
+        if (await confirmed.getAttribute("open") === null) await confirmed.locator("summary").click();
+      }
+      await list.locator(".plan-item").filter({ has: page.getByRole("heading", { name: item.title, exact: true }) }).filter({ hasText: item.instruction }).click();
+      await expect(page.getByRole("dialog")).toBeVisible();
+      await expect(page.getByRole("button", { name: "Salvar correções", exact: true })).toHaveCount(0);
+      await expect(page.getByRole("dialog").locator(".review-source-disclosure")).not.toHaveAttribute("open");
+      await expect(page.getByRole("dialog").locator(".review-corrections")).not.toHaveAttribute("open");
+    };
+    const openOriginal = async () => {
+      const disclosure = page.getByRole("dialog").locator(".review-source-disclosure");
+      if (await disclosure.getAttribute("open") === null) await disclosure.locator("summary").click();
+      await expect(page.getByText("Página 1 de 2", { exact: true })).toBeVisible();
+    };
+    const openCorrections = async () => {
+      const disclosure = page.getByRole("dialog").locator(".review-corrections");
+      if (await disclosure.getAttribute("open") === null) await disclosure.locator("summary").click();
+    };
+    const dose = () => page.getByRole("dialog").getByLabel("Dose", { exact: true });
+    const reading = () => page.getByRole("dialog").locator(".field-group").filter({ has: dose() }).getByRole("combobox");
+    const plusDays = (startDate: string, count: number) => { const date = new Date(`${startDate}T12:00:00Z`); date.setUTCDate(date.getUTCDate() + count); return date.toISOString().slice(0, 10); };
+    const agendaChoices: { title: string; choice: string; evidence: string }[] = [];
+    // These are explicit caregiver choices for synthetic source items, never model truth.
+    const configureAgenda = async (item: DraftItem) => {
+      const dialog = page.getByRole("dialog");
+      if (item.category === "medication") {
+        await expect(dialog.getByLabel("Primeiro dia", { exact: true })).toHaveValue(dateInBrazil(new Date()));
+        await expect(dialog.getByLabel("Último dia (incluído)", { exact: true })).toHaveValue(plusDays(dateInBrazil(new Date()), 2));
+        agendaChoices.push({ title: item.title, choice: "Accept displayed three-day suggestion; conditional care remains conditional", evidence: item.source.quote! });
+        return;
+      }
+      const kind = dialog.getByLabel("Quando acompanhar", { exact: true });
+      let startDate = dateInBrazil(new Date());
+      let endDate: string | null = null;
+      if (item.title === "Compressa fria" || item.title === "Restrição de corrida e saltos") {
+        await kind.selectOption("daily");
+        endDate = plusDays(startDate, item.title === "Compressa fria" ? 2 : 6);
+        agendaChoices.push({ title: item.title, choice: `Daily for the explicit ${item.title === "Compressa fria" ? "3" : "7"} source days; accept displayed operational times`, evidence: item.source.quote! });
+      } else if (item.title === "Fisioterapia" && item.source.page === 1) {
+        await kind.selectOption("weekly");
+        await dialog.getByLabel("Segunda", { exact: true }).check();
+        await dialog.getByLabel("Quinta", { exact: true }).check();
+        startDate = "2026-10-26"; endDate = plusDays(startDate, 20);
+        agendaChoices.push({ title: item.title, choice: "Caregiver-selected Monday/Thursday: two sessions weekly, source start 26/10/2026 and duration three weeks; accept displayed operational time", evidence: item.source.quote! });
+      } else if (item.title === "Retorno e sinais de alerta" || item.title === "Reavaliação") {
+        await kind.selectOption("dates");
+        const sourceDate = item.source.page === 1 ? "2026-10-30" : "2026-11-06";
+        await dialog.getByLabel("Data 1", { exact: true }).fill(sourceDate);
+        agendaChoices.push({ title: item.title, choice: `Explicit source date ${sourceDate}; displayed time is an accepted operational reminder, not an inferred appointment time`, evidence: item.source.quote! });
+      } else {
+        await kind.selectOption("reference");
+        agendaChoices.push({ title: item.title, choice: "Reference only: source describes a condition/restriction or leaves scheduling unresolved; no invented dates or automatic daily tasks", evidence: item.source.quote! });
+      }
+      if (endDate) {
+        await dialog.getByLabel("Validade", { exact: true }).selectOption("finite");
+        await dialog.getByLabel("Primeiro dia", { exact: true }).fill(startDate);
+        await dialog.getByLabel("Último dia (incluído)", { exact: true }).fill(endDate);
+      }
+    };
+    const confirmCare = async () => {
+      await page.getByRole("dialog").getByRole("button", { name: "Confirmar cuidado", exact: true }).click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+    };
     try {
       await openReview();
-      await proof.record("uncertainty_gate", "Replay draft with intentionally ambiguous dose and unresolved item question.", { target: { role: "button", name: "Conferi e confirmo este cuidado" }, kind: "click", description: "Attempt confirmation and activation while ambiguity remains; both must stay blocked." }, async () => {
-        const response = page.waitForResponse(r => r.url().endsWith("/api/actions") && r.request().method() === "POST");
-        await page.getByRole("button", { name: "Conferi e confirmo este cuidado", exact: true }).click(); expect((await response).status()).toBe(409);
-        await expect(page.getByRole("dialog").getByRole("alert")).toBeVisible(); await close(page);
-        const disabled = await page.getByRole("button", { name: "Ativar plano", exact: true }).isDisabled();
-        return [check("activation disabled", true, disabled), check("plan remains draft", "draft", (await state(context)).plan.status), check("ambiguous item remains unconfirmed", false, (await state(context)).plan.items[0].confirmed)];
+      await proof.record("uncertainty_gate", "Replay draft with an intentionally ambiguous dose and unresolved item question; source and editor begin collapsed.", { target: { role: "button", name: "Confirmar cuidado" }, kind: "click", description: "Attempt confirmation while ambiguity remains; local validation retains the dialog and sends no mutation." }, async () => {
+        const before = await state(context); const requests: string[] = [];
+        const listener = (request: { url(): string; method(): string }) => { if (request.url().endsWith("/api/actions") && request.method() === "POST") requests.push(request.url()); };
+        page.on("request", listener);
+        await page.getByRole("button", { name: "Confirmar cuidado", exact: true }).click();
+        await expect(page.getByRole("dialog").locator(".review-blockers")).toContainText("Confira a dose");
+        await expect(page.getByRole("dialog")).toBeVisible(); page.off("request", listener);
+        const blocked = await state(context); await close(page);
+        await expect(page.getByRole("button", { name: "Ativar plano", exact: true })).toBeDisabled();
+        return [check("local validation sends no write", 0, requests.length), check("activation unavailable", "draft", blocked.plan.status), check("revision unchanged", before.revision, blocked.revision), check("ambiguous item unconfirmed", false, blocked.plan.items[0].confirmed)];
       }, async () => { await openReview(); return [check("ambiguity persisted", "ambiguous", (await state(context)).plan.items[0].fields.dose.state)]; });
 
-      await proof.record("primary_action", "Original dose value is readable in stored fixture; ambiguity was a labelled test injection.", { target: { role: "button", name: "Salvar correções" }, kind: "click", description: "Restore the dose's exact source value, mark reading legible, clear test question, save without confirming." }, async () => {
-        await dose().fill(originalDose); await reading().selectOption("readable"); await page.getByLabel("Dúvidas pendentes", { exact: false }).fill("");
-        await expect(page.getByRole("button", { name: "Salvar correções", exact: true })).toBeEnabled();
-        await clickSave(page, page.getByRole("button", { name: "Salvar correções", exact: true }));
+      await proof.record("primary_action", "Original dose is readable in the stored fixture; ambiguity was a labelled test injection.", { target: { role: "button", name: "Confirmar cuidado" }, kind: "click", description: "Restore exact dose, explicitly resolve the injected doubt, then one confirmation saves, confirms and closes." }, async () => {
+        await openCorrections(); await dose().fill(originalDose); await reading().selectOption("readable"); await page.getByLabel("Dúvidas pendentes", { exact: false }).fill("");
+        await configureAgenda(draft.plan.items[0]);
+        await confirmCare();
         const saved = await state(context); const fetched = await context.request.get(stored.url);
-        return [check("saved exact source dose", originalDose, saved.plan.items[0].fields.dose.value), check("saving does not confirm", false, saved.plan.items[0].confirmed), check("private original unchanged", hash(await readFile(original)), hash(await fetched.body()))];
-      }, async () => { await openReview(); return [check("correction restored after reload", originalDose, await dose().inputValue()), check("still not auto-confirmed", false, (await state(context)).plan.items[0].confirmed)]; });
+        return [check("saved exact source dose", originalDose, saved.plan.items[0].fields.dose.value), check("single confirmation also confirms item", true, saved.plan.items[0].confirmed), check("private original unchanged", hash(await readFile(original)), hash(await fetched.body()))];
+      }, async () => { await openReview(); await openCorrections(); return [check("correction restored after reload", originalDose, await dose().inputValue()), check("confirmation persisted", true, (await state(context)).plan.items[0].confirmed)]; });
 
-      await proof.record("source_page_zoom", "Two-page private PDF made from approved existing synthetic originals.", { target: { role: "button", name: "Próxima página" }, kind: "click", description: "Switch real rendered PDF page, zoom to 120%, then restore page and zoom." }, async () => {
-        const canvas = page.locator(".document-stage canvas"); const before = await canvas.evaluate((el: HTMLCanvasElement) => el.toDataURL());
+      await proof.record("source_page_zoom", "Two-page private PDF made from existing synthetic originals; source starts behind Ver no documento.", { target: { role: "button", name: "Próxima página" }, kind: "click", description: "Open original, switch rendered PDF page, zoom to 120%, and restore page and zoom." }, async () => {
+        await openOriginal(); const canvas = page.locator(".document-stage canvas"); const before = await canvas.evaluate((el: HTMLCanvasElement) => el.toDataURL());
         await page.getByRole("button", { name: "Próxima página", exact: true }).click(); await expect(page.getByText("Página 2 de 2", { exact: true })).toBeVisible();
         await expect.poll(async () => canvas.evaluate((el: HTMLCanvasElement) => el.toDataURL())).not.toBe(before);
         const width = (await canvas.boundingBox())!.width;
@@ -319,29 +390,35 @@ for (const display of displays) {
         await expect.poll(async () => (await canvas.boundingBox())!.width).toBeGreaterThan(width);
         const checks = [check("page pixels changed", true, (await canvas.evaluate((el: HTMLCanvasElement) => el.toDataURL())) !== before), check("zoom enlarged real canvas", true, (await canvas.boundingBox())!.width > width)];
         await page.getByRole("button", { name: "Diminuir zoom", exact: true }).click(); await page.getByRole("button", { name: "Página anterior", exact: true }).click(); return checks;
-      }, async () => { await openReview(); return [check("source opens at original page", true, await page.getByText("Página 1 de 2", { exact: true }).isVisible())]; });
+      }, async () => { await openReview(); await openOriginal(); return [check("source opens at original page", true, await page.getByText("Página 1 de 2", { exact: true }).isVisible())]; });
+      await close(page); await openReview(1);
 
-      await proof.record("error_keyboard_recovery", "Review has editable operational time; one write is deliberately rejected before persistence.", { target: { role: "button", name: "Salvar correções" }, kind: "keyboard", description: "Keyboard opens remaining fields; controlled save failure retains edit; manual retry saves; Escape returns context." }, async () => {
-        const more = page.locator(".review-details>summary"); await keyboardTo(page, more); await page.keyboard.press("Enter");
-        await page.getByLabel("Horários da rotina", { exact: true }).fill("08:00"); let failed = false;
+      await proof.record("error_keyboard_recovery", "Unconfirmed cold-compress care; three source days and the displayed operational times are explicitly accepted.", { target: { role: "button", name: "Confirmar cuidado" }, kind: "keyboard", description: "Keyboard opens correction details; a failed save retains inputs and keeps the item unconfirmed; confirmation retry saves, confirms and closes." }, async () => {
+        const more = page.getByRole("dialog").locator(".review-corrections>summary"); await keyboardTo(page, more); await page.keyboard.press("Enter");
+        await configureAgenda(draft.plan.items[1]);
+        const timeInput = page.getByRole("dialog").getByLabel("Horários da rotina", { exact: true });
+        const displayedTimes = await timeInput.inputValue(); expect(displayedTimes).not.toBe("");
+        let failed = false;
         await page.route("**/api/actions", async route => { if (!failed) { failed = true; await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "Falha controlada na correção." }) }); } else await route.continue(); });
-        await page.getByRole("button", { name: "Salvar correções", exact: true }).click();
-        await expect(page.getByRole("dialog").getByRole("alert")).toBeVisible();
-        const retained = await page.getByLabel("Horários da rotina", { exact: true }).inputValue();
-        await clickSave(page, page.getByRole("dialog").getByRole("button", { name: "Tentar novamente", exact: true }));
-        await page.unroute("**/api/actions"); await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0);
-        return [check("failed edit retained", "08:00", retained), check("manual retry saved operational time", ["08:00"], (await state(context)).plan.items[0].schedule!.times), check("no silent activation", "draft", (await state(context)).plan.status)];
-      }, async () => { await openReview(); return [check("time persists after reload", ["08:00"], (await state(context)).plan.items[0].schedule!.times)]; });
-      await close(page);
+        await page.getByRole("dialog").getByRole("button", { name: "Confirmar cuidado", exact: true }).click();
+        await expect(page.getByRole("dialog").getByRole("alert")).toContainText("Falha controlada");
+        const retained = await timeInput.inputValue(); const blocked = await state(context);
+        await confirmCare(); await page.unroute("**/api/actions");
+        const saved = await state(context);
+        return [check("failed edit retained", displayedTimes, retained), check("failed save did not confirm", false, blocked.plan.items[1].confirmed), check("retry saved displayed operational times", displayedTimes.split(",").map(time => time.trim()), saved.plan.items[1].schedule!.times), check("retry confirms item and closes", true, saved.plan.items[1].confirmed), check("no silent activation", "draft", saved.plan.status)];
+      }, async () => { await openReview(1); return [check("confirmation persists after reload", true, (await state(context)).plan.items[1].confirmed)]; });
+      await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0);
 
-      await proof.record("confirm_then_activate", "All replayed source fields are legible and test ambiguity has been explicitly corrected.", { target: { role: "button", name: "Ativar plano" }, kind: "click", description: "Confirm every included care through UI, acknowledge all pages, activate, verify linked patient and reload." }, async () => {
+      await proof.record("confirm_then_activate", "All 14 source items retained; each remaining agenda is an explicit, documented caregiver choice.", { target: { role: "button", name: "Ativar plano" }, kind: "click", description: "Confirm each care through the single-button flow, acknowledge original pages, activate explicitly, and verify linked patient and reload." }, async () => {
         for (let index = 0; index < draft.plan.items.length; index++) {
-          await page.locator(".plan-item").nth(index).click(); await clickSave(page, page.getByRole("button", { name: "Conferi e confirmo este cuidado", exact: true })); await close(page);
+          if ((await state(context)).plan.items[index].confirmed) continue;
+          await openReview(index); await configureAgenda(draft.plan.items[index]); await confirmCare();
         }
         await clickSave(page, page.getByRole("button", { name: "Revisei todas as páginas e incluí as orientações que faltavam.", exact: true }));
         await clickSave(page, page.getByRole("button", { name: "Ativar plano", exact: true }));
         const linked = await start(browser, display, "patient", "ready", draft.demoId); const linkedState = await state(linked.context); await linked.context.close();
-        return [check("all included care confirmed", true, (await state(context)).plan.items.every(i => i.confirmed)), check("shared active plan", "active", linkedState.plan.status), check("same source retained", stored.id, linkedState.document!.id)];
+        await json(resolve(root, "source-fixture", `agenda-choices-${display.id}.json`), agendaChoices);
+        return [check("all source items retained and confirmed", draft.plan.items.length, (await state(context)).plan.items.filter(item => item.confirmed).length), check("shared active plan", "active", linkedState.plan.status), check("same source retained", stored.id, linkedState.document!.id)];
       }, async () => { await plan(page); return [check("active plan after reload", "active", (await state(context)).plan.status), check("active plan read-only", true, await page.getByText("Plano conferido pelo cuidador.", { exact: false }).isVisible())]; });
     } finally { await context.close(); await repository.close(); }
   });

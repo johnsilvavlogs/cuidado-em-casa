@@ -25,18 +25,20 @@ export default function PlanPanel({ state, run, busy, onImport }: Props) {
   const [importing, setImporting] = useState(false);
   const isCaregiver = state.role === "caregiver";
   const isActive = state.plan.status === "active";
-  const confirmed = state.plan.items.filter((item) => item.confirmed).length;
+  const readyForPlan = (item: DraftItem) => item.confirmed && itemConfirmationBlockers(item, state.document).length === 0;
+  const confirmed = state.plan.items.filter(readyForPlan).length;
   const unresolvedCount = state.plan.unresolved.length + state.plan.items.reduce((n, item) => n + item.questions.length + Object.values(item.fields).filter((f) => f.state === "ambiguous" || f.state === "illegible").length, 0);
   const periodsPending = state.plan.items.filter((item) => !hasReviewedSchedule(item) || (!isReferenceCare(item) && !hasExecutableTimes(item)));
   const canActivate = state.plan.items.length > 0 && confirmed === state.plan.items.length && unresolvedCount === 0 && periodsPending.length === 0 && state.plan.sourceReviewed;
   const visibleWarnings = state.plan.warnings.map((warning) => confirmed === 0 ? warning : warning.replace(/(?:[;:]\s*)?\bnenhum (?:item|campo)(?:\s*(?:\/|ou|e)\s*(?:item|campo))?\s+(?:(?:est[aá]|foi)\s+)?confirmad[oa]s?\.?/gi, "").trim()).filter(Boolean);
   const isReadingNote = (warning: string) => /^(?:rascunho para revisão humana|transcrição baseada no texto extraído|transcrição em rascunho:)/i.test(warning) && !/(?:ilegível|ambígu|manuscrit|dúvida)/i.test(warning);
-  const readingNotes = visibleWarnings.filter(isReadingNote);
-  const actionWarnings = visibleWarnings.filter(warning => !isReadingNote(warning));
+  const needsNoAction = (warning: string) => isReadingNote(warning) || /não foi atribuíd[oa].*inferência|não foi inferid[oa]/i.test(warning);
+  const readingNotes = visibleWarnings.filter(needsNoAction);
+  const actionWarnings = visibleWarnings.filter(warning => !needsNoAction(warning));
   const batchItems = state.plan.items.filter(item => !item.confirmed && !batchConfirmationBlocker(item, state.document));
   const unconfirmedCount = state.plan.items.length - confirmed;
   const individualReviewCount = unconfirmedCount - batchItems.length;
-  const nextReviewItem = state.plan.items.find(item => !item.confirmed);
+  const nextReviewItem = state.plan.items.find(item => !readyForPlan(item));
   const activationNote = !state.plan.sourceReviewed
     ? "Revise todas as páginas e confirme a conferência da fonte."
     : state.plan.unresolved.length > 0
@@ -78,11 +80,11 @@ export default function PlanPanel({ state, run, busy, onImport }: Props) {
   </>;
 
   const renderCareItems = (items: DraftItem[]) => <div className="plan-care-items">
-    {items.map((item) => <button className={`card plan-item ${item.confirmed ? "confirmed" : ""}`} key={item.id} onClick={() => setReview(item)}><div className="plan-item-top"><span className="eyebrow">{categoryLabels[item.category]}</span><span className={`badge ${item.confirmed ? "badge-green" : "badge-amber"}`}>{item.confirmed ? <CheckCircleIcon size={15} /> : <CircleIcon size={15} />}{item.confirmed ? "Conferido" : "A conferir"}</span></div><h3>{careText(item.title)}</h3><p>{careText(item.instruction)}</p>{item.schedule?.period && validPeriod(item.schedule.period) && <p className="small-note">Período: {periodLabel(item.schedule.period)}</p>}{item.category === "medication" && !validPeriod(item.schedule?.period) && <p className="warning-text">Período a conferir</p>}{item.schedule?.recurrence && <p className="small-note">Agenda: {recurrenceLabel(item.schedule.recurrence)}</p>}{item.category !== "medication" && !hasReviewedSchedule(item) && <p className="warning-text">Dias da rotina a conferir</p>}{!isReferenceCare(item) && item.schedule?.times.length ? <p className="small-note">Horários: {item.schedule.times.join(", ")}{item.schedule.timeOrigin === "suggested" ? " · sugestão de rotina" : ""}</p> : !isReferenceCare(item) && <p className="warning-text">Horários a conferir</p>}{item.questions.length > 0 && <p className="warning-text"><WarningCircleIcon size={17} />{item.questions.length} dúvida(s) neste cuidado</p>}<span className="item-action">{isActive ? "Ver orientação e fonte" : "Revisar com a fonte"}<ArrowRightIcon size={18} /></span></button>)}
+    {items.map((item) => <button className={`card plan-item ${readyForPlan(item) ? "confirmed" : ""}`} key={item.id} onClick={() => setReview(item)}><div className="plan-item-top"><span className="eyebrow">{categoryLabels[item.category]}</span><span className={`badge ${readyForPlan(item) ? "badge-green" : "badge-amber"}`}>{readyForPlan(item) ? <CheckCircleIcon size={15} /> : <CircleIcon size={15} />}{readyForPlan(item) ? "Conferido" : "A conferir"}</span></div><h3>{careText(item.title)}</h3><p>{careText(item.instruction)}</p>{item.schedule?.period && validPeriod(item.schedule.period) && <p className="small-note">Período: {periodLabel(item.schedule.period)}</p>}{item.category === "medication" && !validPeriod(item.schedule?.period) && <p className="warning-text">Período a conferir</p>}{item.schedule?.recurrence && <p className="small-note">Agenda: {recurrenceLabel(item.schedule.recurrence)}</p>}{item.category !== "medication" && !hasReviewedSchedule(item) && <p className="warning-text">Dias da rotina a conferir</p>}{!isReferenceCare(item) && item.schedule?.times.length ? <p className="small-note">Horários: {item.schedule.times.join(", ")}{item.schedule.timeOrigin === "suggested" ? " · sugestão de rotina" : ""}</p> : !isReferenceCare(item) && <p className="warning-text">Horários a conferir</p>}{item.questions.length > 0 && <p className="warning-text"><WarningCircleIcon size={17} />{item.questions.length} dúvida(s) neste cuidado</p>}<span className="item-action">{isActive ? "Ver orientação e fonte" : "Revisar com a fonte"}<ArrowRightIcon size={18} /></span></button>)}
   </div>;
   const careItems = renderCareItems(state.plan.items);
-  const pendingItems = state.plan.items.filter(item => !item.confirmed);
-  const confirmedItems = state.plan.items.filter(item => item.confirmed);
+  const pendingItems = state.plan.items.filter(item => !readyForPlan(item));
+  const confirmedItems = state.plan.items.filter(readyForPlan);
   const hasDraft = !!state.document || state.plan.items.length > 0;
 
   return <div className={`stack plan-flow ${!isActive && isCaregiver ? "plan-preparation" : ""}`} data-parity-screen="plan">
@@ -101,7 +103,7 @@ export default function PlanPanel({ state, run, busy, onImport }: Props) {
       <div><h3>Confirmar os cuidados</h3><p className="muted">Você também pode confirmar em conjunto os itens já conferidos.</p></div>
       <button className={`plan-source-check ${state.plan.sourceReviewed ? "checked" : ""}`} aria-pressed={state.plan.sourceReviewed} onClick={() => void run({ type: "confirm_source_pages" }, "Conferência de todas as páginas registrada.")} disabled={busy || state.plan.sourceReviewed}>{state.plan.sourceReviewed ? <CheckCircleIcon size={24} aria-hidden="true" /> : <CircleIcon size={24} aria-hidden="true" />}<span>Revisei todas as páginas e incluí as orientações que faltavam.</span></button>
       {batchItems.length > 0 && <><button type="button" className="button primary" data-plan-action="confirm-items" disabled={busy || !state.plan.sourceReviewed || state.plan.unresolved.length > 0} onClick={() => void run({ type: "confirm_items", itemIds: batchItems.map(item => item.id) }, `${batchItems.length} ${batchItems.length === 1 ? "cuidado confirmado" : "cuidados confirmados"} com a fonte.`)}><CheckCircleIcon size={21} />Confirmar {batchItems.length} {batchItems.length === 1 ? "item conferido" : "itens conferidos"}</button><p className="small-note">Os itens com dúvidas continuam pendentes.</p></>}
-      {individualReviewCount > 0 && <div className="plan-individual-needed"><p>{individualReviewCount} {individualReviewCount === 1 ? "cuidado precisa" : "cuidados precisam"} de revisão individual.</p><button type="button" className="text-button" data-plan-action="review-item" disabled={busy} onClick={() => setReview(state.plan.items.find(item => !item.confirmed && !!batchConfirmationBlocker(item, state.document)) ?? nextReviewItem ?? null)}><PencilSimpleIcon size={18} />Revisar próximo cuidado</button></div>}
+      {individualReviewCount > 0 && <div className="plan-individual-needed"><p>{individualReviewCount} {individualReviewCount === 1 ? "cuidado precisa" : "cuidados precisam"} de revisão individual.</p><button type="button" className="text-button" data-plan-action="review-item" disabled={busy} onClick={() => setReview(state.plan.items.find(item => !readyForPlan(item) && !!batchConfirmationBlocker(item, state.document)) ?? nextReviewItem ?? null)}><PencilSimpleIcon size={18} />Revisar próximo cuidado</button></div>}
       <div className="plan-activation"><p className="small-note" role="status">{activationNote}</p><button type="button" className={`button ${canActivate ? "primary" : "secondary"}`} data-plan-action="activate" disabled={!canActivate || busy} onClick={() => void run({ type: "activate_plan" }, "Plano ativado e disponível nas duas visões.")}><ShieldCheckIcon size={21} />Ativar plano</button></div>
     </section>}
     {readingNotes.length > 0 && <details className="plan-secondary-disclosure" data-plan-reading-notes="true"><summary><strong>Observações da leitura</strong><CaretDownIcon size={20} aria-hidden="true" /></summary><div className="stack-sm">{readingNotes.map((note, index) => <p className="small-note" key={index}>{note}</p>)}</div></details>}
