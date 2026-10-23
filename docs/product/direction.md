@@ -1,6 +1,15 @@
 # Direção do MVP
 
-Resumo do [PRD final](prd.md), atualizado em 23 de outubro de 2026. Se houver diferença com um mockup antigo, seguir o PRD.
+Resumo do [PRD](prd.md) e das decisões posteriores, atualizado em 23 de outubro de 2026. O PRD preserva o documento de origem; as decisões abaixo registram o recorte atual.
+
+## Decisões posteriores para a demo local
+
+- Foco exclusivo em mobile. As verificações atuais usam 320 e 390 px; desktop não é critério desta entrega.
+- Os perfis de Helena e Marina compartilham a mesma rotina de demonstração. Cadastro e login locais de cuidador existem, mas convites entre contas ficam fora deste recorte.
+- Avisos ficam compactos; detalhes aparecem ao abrir. A interface cotidiana dispensa rótulos repetidos de demonstração, mantendo essa informação na entrada e documentação.
+- O sono oferece faixas rápidas e duração exata opcional. Uma faixa nunca vira um número exato de minutos.
+- A revisão individual usa uma ação para salvar, confirmar e voltar à lista. A conferência geral confirma os itens elegíveis ou mostra os cuidados que ainda exigem atenção.
+- A voz apresenta um cuidado relevante por vez. Uma intenção de registro gera confirmação visível; apenas o aceite da pessoa grava o resultado.
 
 ## Resultado esperado
 
@@ -32,7 +41,7 @@ flowchart TD
 
 | Tema | Decisão vigente |
 | --- | --- |
-| Plataforma | Next.js, React e TypeScript; navegador em celular e desktop |
+| Plataforma | Next.js, React e TypeScript; foco de implementação e aceite em mobile |
 | Participantes | Uma pessoa cuidada e um cuidador; escolher papel não concede acesso |
 | Documento | Texto impresso legível em PDF/foto ou texto colado; alternativa manual quando a leitura falhar |
 | Fonte | Página original com zoom e trecho transcrito; destaque aproximado opcional |

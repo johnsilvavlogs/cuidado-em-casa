@@ -8,14 +8,16 @@ Evidências coletadas em 23 de outubro de 2026. Os casos e documentos usados sã
 | --- | --- | --- |
 | Responses estruturado | Resposta real válida | Credencial e modelo acessíveis |
 | Oito receitas do repositório | 8 processadas; 115/118 verificações lexicais | Três omissões de contexto em ORT01/ORT02; avaliação humana continua necessária |
-| Decisions, 13 frases em pt-BR | 13/13 classificações esperadas | Texto sintético, não medição de precisão de fala |
+| Decisions, política `2026-10-23.5` | 14/14 frases classificadas como esperado, incluindo cancelamento | Texto sintético, não medição de precisão de fala |
 | GPT-Live por WebSocket | Sessão, decisão nativa, áudio e transcrição | Prova do serviço; não comprova percepção humana do áudio |
 | Microfone e WebRTC no navegador | Conexão e transcrição observadas | Teste breve autorizado, sem ação clínica |
-| Áudio → Decisions → confirmação → gravação | Live/WebRTC real com áudio sintético, cartão de caminhada, confirmação e leitura pelo cuidador | Entrada de áudio sintética; não representa variedade de vozes ou ruído |
+| Áudio → Decisions → confirmação → gravação, política `.5` | Live/WebRTC real com áudio sintético; confirmação e repetição pelo Computer Use; uma conclusão persistida e leitura pelo cuidador | Dois pedidos HTTP idênticos após perda controlada da primeira resposta; não representa variedade de vozes ou ruído |
 | Contexto de tarefas concluídas | Live identificou medicamento/alimentação já feitos e somente caminhada pendente | Casos sintéticos controlados |
 | Referência contextual | “Já concluí” após o assistente citar a caminhada gerou a intenção correta em Live | Teste real por WebSocket |
 
-As três diferenças de extração foram contexto anatômico/lateralidade de cabeçalhos não repetido no texto da tarefa. Não chamar o resultado de 100% de acurácia. Um documento totalmente ilegível retornou zero cuidados; manuscritos exigem revisão.
+As três diferenças de extração foram contexto anatômico/lateralidade de cabeçalhos não repetido no texto da tarefa. Não chamar o resultado de 100% de acurácia. Um documento totalmente ilegível retornou zero cuidados; manuscritos exigem revisão. Essa avaliação de oito documentos corresponde ao prompt de extração `2026-10-23.2`.
+
+A política de voz `.4` passou 11/13 frases na repetição: reconheceu duas ações de medicamento, mas não o ID da tarefa. A `.5` separa a identificação da tarefa das regras da ação; as 14 chamadas seguintes passaram, sem remover os bloqueios para ambiguidade, intenção futura, perguntas e cancelamento. Os resultados anteriores foram preservados em `output/ai/task-identity-repair/` e `output/ai/cancellation-verification/`.
 
 ## Fluxos e persistência
 
@@ -25,9 +27,13 @@ O gatilho de Decisions acompanha as transcrições do paciente. A interface corr
 
 O foco final é mobile, conforme pedido: 320 px e 390×844. As inspeções de desktop anteriores são históricas e não fazem parte do aceite final. As referências visuais, a anatomia congelada, capturas e medições ficam em `output/iterate/`. Evidências são transitórias e não entram no Git; a documentação de produto e os assets finais entram.
 
-A validação final de voz usou Chrome com viewport 390×844, áudio sintético em português, Live/WebRTC e Decisions reais. O cartão foi confirmado por Computer Use, e o servidor gravou uma única conclusão; a sessão do cuidador leu o mesmo estado. O contexto enviado depois da confirmação incluiu a caminhada como feita. Foram aprovados quatro cenários mobile de regressão e esse percurso real.
+A verificação integrada da política `.5` usou Chrome com viewport 390×844, áudio sintético em português, Live/WebRTC e Decisions reais. O cartão e a repetição após perda da resposta foram acionados por Computer Use. O servidor manteve uma única conclusão, e a sessão do cuidador mostrou quatro tarefas registradas. Cinco cenários mobile de regressão também passaram. Recibos desta rodada: `output/e2e/voice-policy-5/` e `output/e2e/voice-policy-5-live/`.
 
 A revisão de documentos permite confirmar em lote os itens claros após a conferência de todas as páginas. O servidor valida o lote inteiro antes de alterar qualquer item; dúvidas, ausência de campos essenciais e itens desconhecidos bloqueiam o lote. A ação não ativa o plano. Root verificou o percurso de sete itens no navegador mobile; testes de domínio verificaram recusa atômica e repetição idempotente.
+
+Outra execução pelo navegador importou texto novo pela API real, confirmou dois cuidados, ativou o plano e mostrou os mesmos cuidados para a pessoa cuidada. Os testes de revisão com PDFs e itens transcritos separadamente comprovam o formulário, a fonte, o bloqueio e a ativação; não contam como uma nova avaliação da qualidade da extração.
+
+As faixas de sono — menos de 4 horas, cerca de 6 horas e 8 horas ou mais — são armazenadas como faixas, sem inventar minutos. Testes em 320 e 390 px verificaram seleção, gravação, leitura pelo cuidador, correção, recarga e a alternativa de duração exata. Pedidos de ajuda conservam o cuidado e a fonte após a virada do dia; resolver a ajuda não conclui a tarefa.
 
 ## Reproduzir
 
@@ -47,6 +53,7 @@ node --import tsx scripts/evaluate-extraction.ts
 node --import tsx scripts/evaluate-voice-decisions.ts
 node --import tsx scripts/evaluate-live-audio.ts
 node --import tsx scripts/evaluate-live-audio.ts --contextual
+node --import tsx scripts/evaluate-live-audio.ts --brevity
 CARE_E2E_LIVE=1 npx playwright test -c tests/e2e/playwright.config.ts voice-ui.integration.spec.ts -g real-live
 ```
 
@@ -54,4 +61,6 @@ Os relatórios completos ficam em `output/ai/` e `output/e2e/`. O teste Playwrig
 
 ## Ainda fora do produto
 
-Autenticação real, convites seguros, hospedagem persistente, observabilidade de produção, notificações push, funcionamento offline e validação clínica dos fluxos. Áudio em ruído, sotaques variados, interrupções e reprodução física em dispositivos diferentes ainda precisam de avaliação com pessoas.
+O cadastro e o login local de cuidador têm autenticação e isolamento de caso. O vínculo entre duas contas por convite, encerramento desse vínculo, recuperação de senha, contato telefônico pessoal e hospedagem persistente ainda não estão implementados. As duas visões conectadas da demo usam um caso sintético compartilhado; não equivalem a esse fluxo completo de contas.
+
+Notificações push, funcionamento offline e validação clínica não fazem parte desta entrega local. Áudio em ruído, sotaques variados e reprodução física em dispositivos diferentes ainda precisam de avaliação com pessoas. Os recibos antigos de paridade visual permanecem incompletos e parte dos alvos foi superada pelas mudanças de UI pedidas depois; não há alegação de equivalência pixel a pixel.
