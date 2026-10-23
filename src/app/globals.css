@@ -13,3 +13,8 @@ body{background:#fcfdf9}.brand{font-size:21px;gap:7px;letter-spacing:-.6px}.bran
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation-duration:.01ms!important;animation-iteration-count:1!important}}
 
 .modal-feedback{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--green);padding:10px 12px;margin-bottom:16px;background:#f0f7ed;border-radius:8px}
+
+/* Server timestamps wrap as prose and expand the caregiver heading on mobile. */
+.timestamp-note{display:block}
+.caregiver-view .daily-heading{height:auto}
+.help-item .timestamp-note{font-size:14px;line-height:1.5}
