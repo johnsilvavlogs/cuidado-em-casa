@@ -47,5 +47,5 @@ export function recurrenceLabel(recurrence: ScheduleRecurrence): string {
 
 export function periodLabel(period: SchedulePeriod): string {
   const format = (value: string) => value.split("-").reverse().join("/");
-  return `${format(period.startDate)} a ${period.endDate ? format(period.endDate) + " (inclusive)" : "sem término definido na orientação"}`;
+  return period.endDate ? `${format(period.startDate)} a ${format(period.endDate)} (inclusive)` : `A partir de ${format(period.startDate)} · sem término definido`;
 }

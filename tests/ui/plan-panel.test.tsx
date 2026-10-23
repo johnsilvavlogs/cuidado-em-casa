@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import PlanPanel, { completeCareConfirmation, ReviewDialog } from "../../src/components/plan-panel";
+import PlanPanel, { completeCareConfirmation, confirmReviewedSource, ReviewDialog } from "../../src/components/plan-panel";
 import { createDemoState } from "../../src/lib/server/care-demo";
 import type { CareState } from "../../src/lib/contracts";
 
@@ -37,8 +37,8 @@ test("batch count excludes doubtful items and activation retains source and sche
   const state = draft();
   state.plan.items[0].questions = ["Conferir a dose no original."];
   const pending = render(state);
-  assert.match(pending, /Confirmar 2 itens conferidos/);
-  assert.match(pending, /Os itens com dúvidas continuam pendentes/);
+  assert.match(pending, /Confirmar 2 cuidados/);
+  assert.match(pending, /Cuidados com dúvidas ficam para revisão/);
   assert.match(pending.match(/<button[^>]*data-plan-action="confirm-items"[^>]*>/)?.[0] ?? "", /disabled/);
   state.plan.items[0].questions = [];
   state.plan.items.forEach(item => { item.confirmed = true; });
@@ -54,7 +54,7 @@ test("active plan keeps its care list available without draft confirmation contr
   const html = render(state);
   assert.match(html, /3 cuidados no plano/);
   assert.doesNotMatch(html, /data-plan-review="individual"|data-plan-review="quick"|data-plan-source="replace"/);
-  assert.match(html, /Ver orientação e fonte/);
+  assert.match(html, /Ver orientação/);
 });
 
 test("successful confirmation saves first, confirms once, then closes", async () => {
@@ -92,7 +92,46 @@ test("previously confirmed care with missing agenda returns to the pending revie
   state.plan.items[0].schedule = undefined;
   const html = render(state);
   assert.match(html, /2 de 3 conferidos/);
-  assert.match(html, /1 cuidado precisa de revisão individual/);
+  assert.match(html, /Falta conferir 1 cuidado/);
   assert.doesNotMatch(html, /Todos os cuidados estão conferidos/);
   assert.match(activateTag(html), /disabled/);
+});
+
+
+test("source acknowledgment confirms only currently eligible care after it succeeds", async () => {
+  const state = draft();
+  const calls: string[] = [];
+  const eligible = state.plan.items.filter(item => !item.title.includes("Medicamento"));
+  assert.equal(await confirmReviewedSource({ getState: () => state, run: async action => {
+    calls.push(action.type);
+    if (action.type === "confirm_source_pages") {
+      state.plan.sourceReviewed = true;
+      state.plan.items[0].questions = ["Confira a dose."];
+    }
+    if (action.type === "confirm_items") assert.deepEqual(action.itemIds, eligible.map(item => item.id));
+    return true;
+  } }), true);
+  assert.deepEqual(calls, ["confirm_source_pages", "confirm_items"]);
+});
+
+test("failed source acknowledgment and unresolved general doubts do not bulk confirm", async () => {
+  const state = draft();
+  let calls: string[] = [];
+  assert.equal(await confirmReviewedSource({ getState: () => state, run: async action => { calls.push(action.type); return false; } }), false);
+  assert.deepEqual(calls, ["confirm_source_pages"]);
+  calls = [];
+  state.plan.unresolved = ["Confirme a orientação com o profissional."];
+  assert.equal(await confirmReviewedSource({ getState: () => state, run: async action => { calls.push(action.type); return true; } }), true);
+  assert.deepEqual(calls, ["confirm_source_pages"]);
+});
+
+test("source-reviewed plan exposes pending care name and reason", () => {
+  const state = draft();
+  state.plan.sourceReviewed = true;
+  state.plan.items[0].questions = ["Confira a dose."];
+  const html = render(state);
+  assert.match(html, /data-plan-source-result="true"/);
+  assert.match(html, /Falta conferir 3 cuidados/);
+  assert.match(html, /Confira a dose\./);
+  assert.match(html, /Conferir cuidado/);
 });

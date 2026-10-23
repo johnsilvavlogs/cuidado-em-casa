@@ -42,12 +42,12 @@ export default function DocumentViewer({ document: original, initialPage = 1 }: 
           if (!disposed) { setPdf(loadedPdf); setLoading(false); }
         } else if (!isImage) {
           const response = await fetch(originalUrl!, { cache: "no-store" });
-          if (!response.ok) throw new Error("Não foi possível abrir o documento original.");
+          if (!response.ok) throw new Error("Não foi possível abrir o documento.");
           const value = await response.text();
           if (!disposed) { setText(value); setLoading(false); }
         } else if (!disposed) setLoading(false);
-      } catch (cause) {
-        if (!disposed) { setError(cause instanceof Error ? cause.message : "Não foi possível abrir o original."); setLoading(false); }
+      } catch {
+        if (!disposed) { setError("Não foi possível abrir o documento. Tente abrir o arquivo abaixo."); setLoading(false); }
       }
     }
     void load();
@@ -73,15 +73,15 @@ export default function DocumentViewer({ document: original, initialPage = 1 }: 
         target.style.height = `${viewport.height}px`;
         renderTask = pdfPage.render({ canvas: target, viewport, transform: [ratio, 0, 0, ratio, 0, 0] });
         await renderTask.promise;
-      } catch (cause) {
-        if (!stopped) setError(cause instanceof Error ? cause.message : "Falha ao mostrar esta página.");
+      } catch {
+        if (!stopped) setError("Não foi possível mostrar esta página. Tente abrir o arquivo abaixo.");
       }
     }
     void render();
     return () => { stopped = true; renderTask?.cancel(); };
   }, [pdf, page, zoom, stageWidth]);
 
-  if (!original) return <EmptyState icon={<FileTextIcon size={30} />} title="Orientação cadastrada manualmente">O texto informado é a fonte deste cuidado. Confira o conteúdo antes de confirmar.</EmptyState>;
+  if (!original) return <EmptyState icon={<FileTextIcon size={30} />} title="Orientação adicionada à mão">Confira o texto que você informou.</EmptyState>;
   return <section className="document-viewer" data-parity-anchor="source-original" aria-label="Documento original">
     <div className="document-toolbar"><span><FileTextIcon size={20} /> <strong>{original.name}</strong></span><a className="icon-button" href={original.url} target="_blank" rel="noreferrer" aria-label="Abrir original em nova aba"><ArrowSquareOutIcon size={21} /></a></div>
     <div className="document-controls" data-parity-anchor="source-controls">
@@ -89,6 +89,6 @@ export default function DocumentViewer({ document: original, initialPage = 1 }: 
       <div className="inline-controls"><button type="button" className="icon-button" aria-label="Diminuir zoom" disabled={zoom <= .6} onClick={() => setZoom(Math.max(.6, zoom - .2))}><MagnifyingGlassMinusIcon size={20} /></button><span>{Math.round(zoom * 100)}%</span><button type="button" className="icon-button" aria-label="Ampliar documento" disabled={zoom >= 2.4} onClick={() => setZoom(Math.min(2.4, zoom + .2))}><MagnifyingGlassPlusIcon size={20} /></button></div>
     </div>
     {error && <p className="error-message" role="alert">{error} <a href={original.url} target="_blank" rel="noreferrer">Abrir arquivo</a></p>}
-    <div className="document-stage" ref={stage}>{loading && <p className="loading-line"><Busy>Lendo original…</Busy></p>}{isPdf ? <canvas ref={canvas} aria-label={`Página ${page} do documento original`} /> : isImage ? <img src={original.url} alt="Documento original enviado para revisão" style={{ width: `${zoom * 100}%`, maxWidth: "none" }} onError={() => setError("Não foi possível carregar a imagem original.")} /> : <pre style={{ fontSize: `${zoom}rem` }}>{text}</pre>}</div>
+    <div className="document-stage" ref={stage}>{loading && <p className="loading-line"><Busy>Abrindo documento…</Busy></p>}{isPdf ? <canvas ref={canvas} aria-label={`Página ${page} do documento original`} /> : isImage ? <img src={original.url} alt="Documento original enviado para revisão" style={{ width: `${zoom * 100}%`, maxWidth: "none" }} onError={() => setError("Não foi possível abrir a imagem.")} /> : <pre style={{ fontSize: `${zoom}rem` }}>{text}</pre>}</div>
   </section>;
 }

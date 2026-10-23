@@ -89,7 +89,7 @@ for (const display of displays) {
       const failed = await readState(caregiver);
       expect(failed.revision).toBe(before.revision);
       expect(failed.tasks.find((task) => task.id === pending.id)?.status).toBe("pending");
-      await saveClick(page, page.getByRole("button", { name: "Tentar novamente", exact: true }));
+      await saveClick(page, page.getByRole("button", { name: "Tentar de novo", exact: true }));
       expect(requests).toHaveLength(2);
       expect(requests[1]).toEqual(requests[0]);
       const final = await readState(caregiver);
@@ -157,7 +157,7 @@ for (const display of displays) {
       await carePage.goto(`/?demo=${initial.demoId}&role=caregiver`);
       await carePage.getByRole("button", { name: "Ver relato", exact: true }).click();
       const normalCard = carePage.locator(".help-item").filter({ hasText: normal.message });
-      await saveClick(carePage, normalCard.getByRole("button", { name: "Ajuda resolvida", exact: true }));
+      await saveClick(carePage, normalCard.getByRole("button", { name: "Marcar como resolvido", exact: true }));
       current = await readState(caregiver);
       expect(current.helpRequests.find((help) => help.id === normal.id)?.status).toBe("resolved");
       expect(current.tasks.find((task) => task.id === firstTask.id)?.status).toBe("pending");
@@ -165,7 +165,7 @@ for (const display of displays) {
 
       await page.getByRole("button", { name: "Ajuda urgente", exact: true }).click();
       await expect(page.getByRole("link", { name: "Ligar para o SAMU · 192", exact: true })).toHaveAttribute("href", "tel:192");
-      await saveClick(page, page.getByRole("button", { name: "Avisar meu cuidador agora", exact: true }));
+      await saveClick(page, page.getByRole("button", { name: "Enviar pedido urgente", exact: true }));
       await expect(page.getByRole("button", { name: "Pedido urgente salvo", exact: true })).toBeDisabled();
       current = await readState(caregiver);
       const urgent = current.helpRequests.find((help) => help.urgent)!;
@@ -174,7 +174,7 @@ for (const display of displays) {
       await carePage.reload();
       await carePage.getByRole("button", { name: "Ver relato", exact: true }).click();
       const urgentCard = carePage.locator(".help-item").filter({ hasText: urgent.message });
-      await saveClick(carePage, urgentCard.getByRole("button", { name: "Ajuda resolvida", exact: true }));
+      await saveClick(carePage, urgentCard.getByRole("button", { name: "Marcar como resolvido", exact: true }));
       const final = await readState(caregiver);
       expect(final.helpRequests.find((help) => help.id === urgent.id)?.status).toBe("resolved");
       expect(final.helpRequests.find((help) => help.id === normal.id)?.status).toBe("resolved");

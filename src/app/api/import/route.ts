@@ -22,12 +22,12 @@ export async function POST(request: Request) {
     const length = Number(request.headers.get("content-length") || 0);
     if (length > 11 * 1024 * 1024) return Response.json({ error: "Use um arquivo de até 10 MB." }, { status: 413 });
     const contentType = request.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
-    if (contentType !== "multipart/form-data" && contentType !== "application/x-www-form-urlencoded") throw new CareError("Envie as orientações em um formulário com arquivo ou texto.", 415);
+    if (contentType !== "multipart/form-data" && contentType !== "application/x-www-form-urlencoded") throw new CareError("Envie um arquivo ou cole as orientações.", 415);
     let form: FormData;
     try {
       form = await request.formData();
     } catch {
-      throw new CareError("O formulário enviado é inválido. Confira o arquivo ou texto e envie novamente.");
+      throw new CareError("Confira o arquivo ou texto e envie de novo.");
     }
     let contextInput: unknown;
     try { contextInput = JSON.parse(String(form.get("context"))); } catch { contextInput = null; }
@@ -56,6 +56,6 @@ export async function POST(request: Request) {
     return Response.json(await importDraft(document, extraction, context), { headers: privateHeaders });
   } catch (error) {
     if (isCareError(error)) return errorResponse(error);
-    return Response.json({ error: "Não foi possível ler este documento. Tente novamente, envie uma imagem mais legível ou cadastre as orientações manualmente." }, { status: 502 });
+    return Response.json({ error: "Não consegui ler o documento. Envie uma imagem mais nítida ou digite os cuidados." }, { status: 502 });
   }
 }

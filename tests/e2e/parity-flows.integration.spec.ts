@@ -144,12 +144,12 @@ for (const display of displays) {
         await clickSave(page, page.getByRole("button", { name: "Enviar pedido de ajuda", exact: true }));
         await page.getByRole("button", { name: "Ajuda urgente", exact: true }).click();
         const href = await page.getByRole("link", { name: "Ligar para o SAMU · 192", exact: true }).getAttribute("href");
-        await clickSave(page, page.getByRole("button", { name: "Avisar meu cuidador agora", exact: true }));
+        await clickSave(page, page.getByRole("button", { name: "Enviar pedido urgente", exact: true }));
         const saved = await state(context); await close(page);
         return [check("independent emergency link; not dialed", "tel:192", href), check("normal help saved", true, saved.helpRequests.some(h => !h.urgent && h.taskId === pendingId)), check("urgent help saved", true, saved.helpRequests.some(h => h.urgent)), check("help does not conclude task", "pending", saved.tasks.find(t => t.id === pendingId)!.status)];
       }, async () => [check("two help requests persisted", 2, (await state(context)).helpRequests.length)]);
 
-      await proof.record("save_failure_retry", "One controlled HTTP failure before the real write; same request ID is retried.", { target: { role: "button", name: "Tentar novamente" }, kind: "click", description: "Fail one write at HTTP boundary, inspect visible error, retry manually, compare request IDs and SQLite revision." }, async () => {
+      await proof.record("save_failure_retry", "One controlled HTTP failure before the real write; same request ID is retried.", { target: { role: "button", name: "Tentar de novo" }, kind: "click", description: "Fail one write at HTTP boundary, inspect visible error, retry manually, compare request IDs and SQLite revision." }, async () => {
         pendingId = (await state(context)).tasks.find(t => t.status === "pending")!.id;
         const revision = (await state(context)).revision; const requests: unknown[] = []; let failed = false;
         const listener = (request: { url(): string; method(): string; postDataJSON(): unknown }) => { if (request.url().endsWith("/api/actions") && request.method() === "POST") requests.push(request.postDataJSON()); };
@@ -158,7 +158,7 @@ for (const display of displays) {
         await page.getByRole("button", { name: "Já fiz", exact: true }).click();
         await expect(page.getByRole("alert").filter({ hasText: "Falha controlada" })).toBeVisible();
         const afterFailure = await state(context);
-        await clickSave(page, page.getByRole("button", { name: "Tentar novamente", exact: true }));
+        await clickSave(page, page.getByRole("button", { name: "Tentar de novo", exact: true }));
         await page.unroute("**/api/actions"); page.off("request", listener);
         const saved = await state(context);
         return [check("failed request not saved", revision, afterFailure.revision), check("identical retry payload and request ID", requests[0], requests[1]), check("one durable write", revision + 1, saved.revision), check("task saved once", "done", saved.tasks.find(t => t.id === pendingId)!.status)];
@@ -209,13 +209,13 @@ for (const display of displays) {
       }, async () => [check("same caregiver case retained", patient.initial.demoId, (await state(context)).demoId)]);
 
       let helpId = "";
-      await proof.record("help_resolution", "Patient sends an open normal help request tied to a pending care.", { target: { role: "button", name: "Ajuda resolvida" }, kind: "click", description: "Read reason and resolve request in caregiver UI; check both sessions and task independence." }, async () => {
+      await proof.record("help_resolution", "Patient sends an open normal help request tied to a pending care.", { target: { role: "button", name: "Marcar como resolvido" }, kind: "click", description: "Read reason and resolve request in caregiver UI; check both sessions and task independence." }, async () => {
         await patient.page.locator(".routine-more>summary").click(); await patient.page.locator(".compact-task").first().click();
         await patient.page.getByRole("button", { name: "Pedir ajuda", exact: true }).click(); await patient.page.getByLabel("Como podemos ajudar?", { exact: true }).fill("Preciso de apoio neste cuidado.");
         await clickSave(patient.page, patient.page.getByRole("button", { name: "Enviar pedido de ajuda", exact: true }));
         await expect(page.getByRole("button", { name: "Ver relato", exact: true })).toBeVisible(); await page.getByRole("button", { name: "Ver relato", exact: true }).click();
         const before = await state(context); helpId = before.helpRequests[0].id;
-        await clickSave(page, page.getByRole("button", { name: "Ajuda resolvida", exact: true })); await close(page);
+        await clickSave(page, page.getByRole("button", { name: "Marcar como resolvido", exact: true })); await close(page);
         return [check("caregiver sees resolution", "resolved", (await state(context)).helpRequests.find(h => h.id === helpId)!.status), check("patient sees resolution", "resolved", (await state(patient.context)).helpRequests.find(h => h.id === helpId)!.status), check("resolution does not complete task", "pending", (await state(context)).tasks.find(t => t.id === pending.id)!.status)];
       }, async () => [check("resolution persists", "resolved", (await state(context)).helpRequests.find(h => h.id === helpId)!.status)]);
 
@@ -293,7 +293,7 @@ for (const display of displays) {
     const openReview = async (index = 0) => {
       await plan(page);
       const list = page.locator('[data-plan-review="individual"]');
-      if (await list.getAttribute("open") === null) await list.locator("summary").click();
+      if (await list.getAttribute("open") === null) await list.locator(":scope > summary").click();
       const item = draft.plan.items[index];
       if ((await state(context)).plan.items.find(candidate => candidate.id === item.id)?.confirmed) {
         const confirmed = list.locator(".plan-secondary-disclosure");
@@ -315,7 +315,7 @@ for (const display of displays) {
       if (await disclosure.getAttribute("open") === null) await disclosure.locator("summary").click();
     };
     const dose = () => page.getByRole("dialog").getByLabel("Dose", { exact: true });
-    const reading = () => page.getByRole("dialog").locator(".field-group").filter({ has: dose() }).getByRole("combobox");
+    const reading = () => page.getByRole("dialog").locator(".field-group").filter({ has: page.getByLabel("Dose", { exact: true }) }).getByRole("combobox");
     const plusDays = (startDate: string, count: number) => { const date = new Date(`${startDate}T12:00:00Z`); date.setUTCDate(date.getUTCDate() + count); return date.toISOString().slice(0, 10); };
     const agendaChoices: { title: string; choice: string; evidence: string }[] = [];
     // These are explicit caregiver choices for synthetic source items, never model truth.
@@ -414,7 +414,7 @@ for (const display of displays) {
           if ((await state(context)).plan.items[index].confirmed) continue;
           await openReview(index); await configureAgenda(draft.plan.items[index]); await confirmCare();
         }
-        await clickSave(page, page.getByRole("button", { name: "Revisei todas as páginas e incluí as orientações que faltavam.", exact: true }));
+        await clickSave(page, page.getByRole("button", { name: "Conferi todas as páginas e incluí o que faltava.", exact: true }));
         await clickSave(page, page.getByRole("button", { name: "Ativar plano", exact: true }));
         const linked = await start(browser, display, "patient", "ready", draft.demoId); const linkedState = await state(linked.context); await linked.context.close();
         await json(resolve(root, "source-fixture", `agenda-choices-${display.id}.json`), agendaChoices);

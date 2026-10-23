@@ -51,8 +51,7 @@ test("mobile-plan-dates-single-confirm-and-bulk-activation", async ({ page }, in
   expect(after.plan.items[0].schedule?.period).toEqual({ startDate: today, endDate: end.toISOString().slice(0, 10) });
   expect(after.plan.items[0].instruction).toContain("se houver dor, por até 3 dias");
   await page.unroute("**/api/actions");
-  await page.getByRole("button", { name: "Revisei todas as páginas e incluí as orientações que faltavam.", exact: true }).click();
-  await page.getByRole("button", { name: "Confirmar 1 item conferido", exact: true }).click();
+  await page.getByRole("button", { name: "Conferi todas as páginas e incluí o que faltava.", exact: true }).click();
   await expect(page.getByRole("button", { name: "Ativar plano", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "Ativar plano", exact: true }).click();
   await expect(page.getByText("Plano ativo", { exact: true })).toBeVisible();

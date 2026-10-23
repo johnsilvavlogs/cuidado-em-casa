@@ -60,8 +60,8 @@ export default function ManualCareDialog({ state, busy, run, onClose }: Props) {
     event.preventDefault();
     if (busy || sending.current) return;
     setError("");
-    if (!title.trim() || !instruction.trim()) return setError("Informe o nome do cuidado e a orientação completa.");
-    if (!quote.trim()) return setError("Transcreva o trecho da fonte ou informe a origem da orientação.");
+    if (!title.trim() || !instruction.trim()) return setError("Preencha o nome e a orientação.");
+    if (!quote.trim()) return setError("Copie o trecho ou diga de onde veio a orientação.");
     const sourcePage = pagedSource ? Number(page) : null;
     if (pagedSource && (!Number.isInteger(sourcePage) || sourcePage! < 1 || (state.document?.pageCount && sourcePage! > state.document.pageCount))) {
       return setError("Informe uma página válida do documento.");
@@ -70,29 +70,29 @@ export default function ManualCareDialog({ state, busy, run, onClose }: Props) {
     setSaving(true);
     try {
       const item = buildManualCareItem({ id: crypto.randomUUID(), title, instruction, category, quote, page: sourcePage, document: state.document, medication });
-      if (await run({ type: "add_item", item }, "Cuidado adicionado ao rascunho. Revise antes de confirmar.")) onClose();
+      if (await run({ type: "add_item", item }, "Cuidado adicionado. Falta conferir.")) onClose();
     } finally {
       sending.current = false;
       setSaving(false);
     }
   }
 
-  return <Modal title="Adicionar um cuidado" subtitle="Transcreva a orientação recebida sem completar o que não consta." onClose={onClose}>
+  return <Modal title="Adicionar um cuidado" subtitle="Copie a orientação como você a recebeu." onClose={onClose}>
     <form onSubmit={submit} className="stack" aria-busy={disabled}>
       <label>Categoria<select value={category} disabled={disabled} onChange={(event) => setCategory(event.target.value as DraftItem["category"])}>{Object.entries(categoryLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
       <label>Nome do cuidado<input value={title} maxLength={200} onChange={(event) => setTitle(event.target.value)} required disabled={disabled} /></label>
       <label>Orientação completa<textarea rows={4} value={instruction} maxLength={8000} onChange={(event) => setInstruction(event.target.value)} required disabled={disabled} /></label>
       {category === "medication" && <fieldset className="stack-sm" disabled={disabled}>
-        <legend>Campos do medicamento</legend>
-        <p className="small-note">Preencha somente o que consta na fonte. Campos opcionais em branco serão marcados como ausentes.</p>
+        <legend>Sobre o medicamento</legend>
+        <p className="small-note">Preencha o que está na orientação. Deixe o restante em branco.</p>
         {medicationFields.map(key => <label key={key}>{key === "nome" ? "Nome do medicamento" : fieldLabels[key] ?? key} (opcional)
           {key === "condicoes"
             ? <textarea rows={2} maxLength={4000} value={medication[key] ?? ""} onChange={(event) => setMedication(current => ({ ...current, [key]: event.target.value }))} placeholder="Não consta na fonte" />
             : <input maxLength={4000} value={medication[key] ?? ""} onChange={(event) => setMedication(current => ({ ...current, [key]: event.target.value }))} placeholder="Não consta na fonte" />}
         </label>)}
-        <p className="small-note">O período e os horários serão conferidos na revisão do cuidado.</p>
+        <p className="small-note">Você confere as datas e os horários na próxima etapa.</p>
       </fieldset>}
-      <label>Trecho da fonte<textarea rows={3} value={quote} maxLength={12000} onChange={(event) => setQuote(event.target.value)} placeholder="Copie o trecho ou informe a origem da orientação." required disabled={disabled} /></label>
+      <label>De onde veio a orientação?<textarea rows={3} value={quote} maxLength={12000} onChange={(event) => setQuote(event.target.value)} placeholder="Copie o trecho ou informe quem orientou." required disabled={disabled} /></label>
       {pagedSource && <label>Página<input type="number" min="1" max={state.document?.pageCount ?? 10000} step="1" value={page} onChange={(event) => setPage(event.target.value)} required disabled={disabled} /></label>}
       {error && <p className="error-message" role="alert">{error}</p>}
       <button type="submit" className="button primary" disabled={disabled}>{saving ? <Busy>Adicionando…</Busy> : <><PlusIcon size={20} />Adicionar ao rascunho</>}</button>
