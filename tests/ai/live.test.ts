@@ -13,6 +13,8 @@ test("an empty routine never submits an invalid one-option choice question", () 
 test("Live does not store audio and requires confirmation before a claimed action", () => {
   const config = buildLiveSessionConfig(state);
   assert.equal(config.store, false);
+  assert.equal(config.audio?.output?.voice, "bossa");
+  assert.match(config.instructions ?? "", /Não ofereça lembretes/);
   assert.equal(config.delegation?.type, "decisions");
   assert.equal(config.triggers?.length, 1);
   assert.equal(config.triggers?.[0].event_type, "session.input_transcript.delta");

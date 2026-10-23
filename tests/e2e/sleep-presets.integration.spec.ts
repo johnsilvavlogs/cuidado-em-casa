@@ -1,8 +1,9 @@
 import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
+import { randomUUID } from "node:crypto";
 import type { CareState } from "../../src/lib/contracts";
 
 const base = process.env.CARE_E2E_BASE_URL || "http://127.0.0.1:3000";
-const presetNames = ["Menos de 4 horas", "Cerca de 6 horas", "8 horas ou mais", "Outro tempo"];
+const presetNames = ["Menos de 4 horas", "Cerca de 6 horas", "8 horas ou mais"];
 
 async function readState(context: BrowserContext): Promise<CareState> {
   const response = await context.request.get("/api/state");
@@ -28,6 +29,9 @@ async function keyboardReach(page: Page, target: Locator) {
 async function checkPresetLayout(page: Page, dialog: Locator, width: number) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width + 1);
   expect(await dialog.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+  await expect(dialog.getByRole("group", { name: "Tempo de sono" }).getByRole("button")).toHaveCount(3);
+  await expect(dialog.getByRole("button", { name: "Outro tempo", exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole("spinbutton")).toHaveCount(0);
   const sleepCard = dialog.locator('.sleep-card');
   const layout = await sleepCard.evaluate(card => ({
     bottom: card.getBoundingClientRect().bottom,
@@ -116,19 +120,13 @@ for (const width of [390, 320]) {
       dialog = await openReport(page);
       await expect(dialog.getByRole("button", { name: "Cerca de 6 horas", exact: true })).toHaveAttribute("aria-pressed", "true");
       await expect(dialog.getByRole("button", { name: "Suficiente", exact: true })).toHaveAttribute("aria-pressed", "true");
-      const other = dialog.getByRole("button", { name: "Outro tempo", exact: true });
-      await keyboardReach(page, other);
+      const eightOrMore = dialog.getByRole("button", { name: "8 horas ou mais", exact: true });
+      await keyboardReach(page, eightOrMore);
       await page.keyboard.press("Space");
-      await expect(other).toHaveAttribute("aria-pressed", "true");
+      await expect(eightOrMore).toHaveAttribute("aria-pressed", "true");
       await expect(dialog.getByRole("button", { name: "Cerca de 6 horas", exact: true })).toHaveAttribute("aria-pressed", "false");
-      const hours = dialog.getByRole("spinbutton", { name: "Horas", exact: true });
-      const minutes = dialog.getByRole("spinbutton", { name: "Minutos", exact: true });
-      await expect(hours).toBeVisible();
-      await expect(minutes).toBeVisible();
-      await hours.fill("7");
-      await minutes.fill("20");
       await checkPresetLayout(page, dialog, width);
-      await page.screenshot({ path: info.outputPath(`sleep-${width}-exact-inputs.png`), scale: "css" });
+      await page.screenshot({ path: info.outputPath(`sleep-${width}-three-options.png`), scale: "css" });
       expect((await readState(caregiver)).checkIns[0]).toEqual(second);
       await dialog.getByRole("button", { name: "Pular", exact: true }).click();
       expect((await readState(caregiver)).checkIns[0]).toEqual(second);
@@ -138,9 +136,34 @@ for (const width of [390, 320]) {
       await info.attach("sleep-presets-evidence", { contentType: "application/json", body: JSON.stringify({
         result: "passed", origin: base, viewport: { width, height: 844 }, caseId: initial.demoId,
         method: "Real UI, API and SQLite in isolated synthetic patient/caregiver sessions; no network or model mocks.",
-        assertions: ["presets fit without horizontal overflow", "presets have 44px targets", "keyboard selects preset and exact entry", "duration does not force sleep quality", "caregiver sees saved range", "range and selected quality persist after reload", "editing preserves report identity", "Other reveals exact inputs", "unsaved exact edit leaves saved range intact"],
+        assertions: ["presets fit without horizontal overflow", "presets have 44px targets", "keyboard selects presets", "duration does not force sleep quality", "caregiver sees saved range", "range and selected quality persist after reload", "editing preserves report identity", "exactly three choices and no exact inputs", "unsaved choice leaves saved range intact"],
         first, second, actions,
       }, null, 2) });
     } finally { await caregiver.close(); }
   });
 }
+
+
+test("editing other report fields preserves historical exact sleep minutes", async ({ page }) => {
+  const started = await page.request.post("/api/demo", { data: { scenario: "ready", role: "patient" }, headers: { Origin: base } });
+  expect(started.status(), await started.text()).toBe(200);
+  const initial = await started.json() as CareState;
+  const seeded = await page.request.post("/api/actions", { headers: { Origin: base }, data: {
+    context: { demoId: initial.demoId, role: "patient" },
+    action: { type: "check_in", sleepMinutes: 437, sleepQuality: null, food: null, mood: null, requestId: randomUUID() },
+  } });
+  expect(seeded.status(), await seeded.text()).toBe(200);
+  const legacy = (await seeded.json() as CareState).checkIns[0];
+  await page.goto(`/?demo=${initial.demoId}&role=patient`);
+  let dialog = await openReport(page);
+  await expect(dialog.getByRole("spinbutton")).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: "Outro tempo", exact: true })).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Sim", exact: true }).click();
+  await saveReport(page, dialog);
+  expect((await readState(page.context())).checkIns[0]).toMatchObject({ id: legacy.id, sleepMinutes: 437, sleepRange: null, food: "yes" });
+
+  dialog = await openReport(page);
+  await dialog.getByRole("button", { name: "Cerca de 6 horas", exact: true }).click();
+  await saveReport(page, dialog);
+  expect((await readState(page.context())).checkIns[0]).toMatchObject({ id: legacy.id, sleepMinutes: null, sleepRange: "around6", food: "yes" });
+});
