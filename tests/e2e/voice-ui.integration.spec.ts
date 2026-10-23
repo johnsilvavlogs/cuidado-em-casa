@@ -26,8 +26,9 @@ const evidencePath = resolve("output/ai/voice-decisions/evaluation.json");
 const evidenceBytes = await readFile(evidencePath);
 const captured = JSON.parse(evidenceBytes.toString("utf8")) as CapturedDecisionReport;
 const evaluationHash = createHash("sha256").update(evidenceBytes).digest("hex");
-const reportDirectory = resolve("output/e2e/voice-ui");
+const reportDirectory = resolve(process.env.CARE_E2E_OUTPUT || "output/e2e/voice-ui");
 const base = process.env.CARE_E2E_BASE_URL || "http://127.0.0.1:3000";
+const appPath = process.env.CARE_E2E_APP_PATH || "/";
 const captureEnabled = process.env.CARE_E2E_CAPTURE === "1";
 const displays = [{ id: "mobile", width: 390, height: 844 }, { id: "desktop", width: 1280, height: 800 }] as const;
 type Display = typeof displays[number];
@@ -124,7 +125,7 @@ async function startCase(page: Page): Promise<CareState> {
   const response = await page.request.post("/api/demo", { data: { scenario: "ready", role: "patient" }, headers: { Origin: base } });
   expect(response.status()).toBe(200);
   const state = await response.json() as CareState;
-  await page.goto(`/?demo=${state.demoId}&role=patient`);
+  await page.goto(`${appPath}?demo=${state.demoId}&role=patient`);
   await expect(page.getByRole("button", { name: "Falar com assistente", exact: true })).toBeVisible();
   return state;
 }

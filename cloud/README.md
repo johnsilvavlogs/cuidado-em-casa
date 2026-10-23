@@ -34,3 +34,13 @@ Depois da instalação, `npm run db:generate` gera migrações de uma mudança d
 Configure `OPENAI_API_KEY` pelos segredos do Site. Nunca grave a chave em código, arquivos de ambiente enviados ou parâmetros de comandos. O manifesto declara `DB` e `DOCUMENTS`; a plataforma cria e associa os recursos durante a publicação. Migrações devem conter somente schema.
 
 Para publicar, o responsável pelo Site usa `site-workflow.mjs` para sincronizar e empacotar a fonte, salva a versão e a implanta com as ferramentas nativas. Preserve o público atual do Site. Verifique no endereço publicado a landing, abertura de `/app`, sessão de demonstração, compartilhamento entre perfis, gravação dos registros e leitura dos documentos. A leitura com IA e a voz exigem a chave configurada e devem ser verificadas no ambiente publicado.
+
+## Repetir os testes
+
+```sh
+node --import tsx --test cloud/tests/care-cloud-repository.test.ts
+node cloud/tests/production-smoke.mjs
+node cloud/tests/production-ai-smoke.mjs
+```
+
+Os dois últimos comandos usam o domínio público, criam casos sintéticos e preservam os registros para inspeção. O teste de IA faz chamadas cobradas à OpenAI pelo servidor publicado. Use `CLOUD_APP_ORIGIN` para apontar os testes para outro ambiente.
