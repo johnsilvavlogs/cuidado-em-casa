@@ -16,3 +16,211 @@ body{background:#fcfdf9}.brand{font-size:21px;gap:7px;letter-spacing:-.6px}.bran
 
 .access-heading{display:flex;flex-direction:column;gap:8px}.access-heading>.muted,.access-description{font-size:14px;line-height:1.6}.access-modes>button{font-size:14px;padding:9px 8px}.access-form{display:flex;flex-direction:column;gap:16px}.access-form h3{font-size:21px;margin-bottom:6px}.access-form>.button{width:100%}.access-switch{align-self:center;min-height:44px}.access-privacy{padding-top:14px;border-top:1px solid var(--line);justify-content:center;text-align:center}.account-avatar{display:flex;align-items:center;flex-direction:column;gap:4px;width:72px}.account-avatar>span{display:grid;place-items:center;width:64px;height:64px;border-radius:50%;background:var(--green-soft);color:var(--green);font-size:26px;font-weight:650}.account-avatar>small{max-width:90px;overflow:hidden;text-overflow:ellipsis;font-size:12px;white-space:nowrap}.account-email{overflow-wrap:anywhere}
 @media(max-width:720px){.account-avatar{width:62px}.account-avatar>span{width:54px;height:54px}.access-modes>button{font-size:13px}.entry-card{gap:16px}.access-heading h2{font-size:25px}}
+/* Keep the report date in the heading; the form begins with the sleep card. */
+.checkin>.modal-header{height:72px;margin:16px 0}
+.checkin>.modal-header>div{min-width:0}
+.checkin-date{height:28px;min-height:28px;margin:2px 0 0;gap:8px}
+.checkin-date>span{font-size:14px;white-space:nowrap}
+.checkin-date>input{width:140px;min-width:0;max-width:100%;font-size:14px}
+
+@media(max-width:720px){
+  .caregiver-view .daily-heading{height:auto;min-height:66px}
+  .caregiver-view .daily-heading>h1{font-size:clamp(23px,6.6vw,26px);line-height:1.2;white-space:normal;overflow-wrap:normal}
+  .caregiver-view .daily-heading>.muted{margin-top:11px}
+  .caregiver-wellbeing{position:relative}
+  .caregiver-progress{position:absolute;left:54px;right:13px;bottom:25px;display:grid;grid-template-columns:21px minmax(0,1fr);gap:14px;align-items:start;min-height:0;margin:0}
+  .caregiver-progress>svg{width:21px;height:21px}
+  .caregiver-progress strong{display:block;line-height:20px}
+  .caregiver-progress .progress-track{height:8px;margin-top:10px}
+
+  .checkin>.modal-header{height:auto;min-height:72px;margin:18px 0 16px}
+  .checkin>.modal-header h2{line-height:38px}
+  .checkin-date{height:28px;min-height:28px;margin-top:6px}
+  .checkin-date>span,.checkin-date>input{font-size:14px}
+  .checkin-form{gap:0}
+  .checkin-form>.wellbeing-input+.wellbeing-input{margin-top:16px}
+  .checkin .wellbeing-input{height:112px;padding:15px 13px 11px;gap:10px}
+  .checkin .wellbeing-input .card-heading{height:30px;min-height:30px}
+  .checkin .wellbeing-input .icon-disc{width:30px;height:30px}
+  .checkin .wellbeing-input h3{font-size:18px;line-height:24px}
+  .checkin .sleep-card{height:214px;padding:13px;gap:12px}
+  .checkin .sleep-card .card-heading{height:32px;min-height:32px}
+  .checkin .sleep-card .icon-disc{width:32px;height:32px}
+  .checkin .sleep-inputs{padding-left:50px;padding-right:6px;gap:14px}
+  .checkin .sleep-inputs label{flex-direction:column-reverse;gap:4px;font-size:14px;line-height:20px}
+  .checkin .sleep-inputs input{height:58px;min-height:58px;font-size:24px}
+  .checkin .choice-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+  .checkin .choice-row[data-parity-anchor="mood-choices"]{grid-template-columns:minmax(0,1fr) minmax(0,1.6fr) minmax(0,1fr)}
+  .checkin .choice-row>button{height:44px;min-height:44px;padding:8px 2px;line-height:20px;font-size:14px;white-space:nowrap}
+  .checkin-form>.small-note{height:26px;min-height:26px;margin-top:12px;font-size:14px;line-height:20px}
+  .checkin-form>.error-message{margin-top:12px}
+  .checkin-actions{display:grid;grid-template-columns:minmax(0,220fr) minmax(0,118fr);gap:12px;margin-top:14px}
+  .checkin-actions>.button{height:48px;min-height:48px;font-size:16px}
+}
+
+/* Source review keeps the original and its structured correction adjacent. */
+.review-screen .modal-header h2{width:100%;font-size:30px;line-height:36px}
+.review-screen .modal-header>div{flex:1;min-width:0}
+.review-screen .source-quote{height:96px;min-height:96px;display:flex;flex-direction:column;gap:4px}
+.review-screen .source-quote blockquote{overflow:auto;min-height:0;flex:1;white-space:pre-line}
+.review-screen .field-group{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;padding:8px;min-height:110px}
+.review-screen .field-group>label:first-child{grid-area:1/1}
+.review-screen .field-group>.field-status{grid-area:1/2}
+.review-screen .field-group>small{grid-column:1/-1;font-size:12px;line-height:18px}
+.review-screen .field-group input,.review-screen .field-group select{min-height:44px;height:44px;padding:8px;font-size:14px}
+.review-screen .field-group label{font-size:13px;line-height:18px;gap:4px}
+.review-screen label[data-parity-anchor="clarification-context"]{gap:6px;line-height:20px}
+.review-screen label[data-parity-anchor="clarification-context"] textarea{height:44px;min-height:44px;resize:vertical;padding:8px}
+.review-screen .document-viewer{position:relative}
+.review-screen .document-toolbar{position:absolute;right:0;top:0;z-index:1;width:40px;height:44px;padding:0;border:0;background:transparent}
+.review-screen .document-toolbar>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.review-screen .document-toolbar>.icon-button{width:38px;height:42px;border:0;background:transparent}
+.review-screen .document-controls{height:44px;min-height:44px;padding:0 42px 0 3px;flex-shrink:0}
+.review-screen .document-controls .inline-controls{gap:2px}
+.review-screen .review-form>.stack-sm{gap:12px}
+@media(max-width:720px){
+ .review-screen .source-quote{height:76px;min-height:76px}
+ .review-screen .field-group{height:110px;min-height:110px}
+ .review-screen .inline-controls{font-size:12px}
+ .review-screen .inline-controls .icon-button{width:30px;height:42px;min-height:42px;padding:5px}
+}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+.review-screen>.modal-header{position:relative}
+.review-screen>.modal-header>div{width:100%;flex:none}
+.review-screen>.modal-header>.icon-button{position:absolute;right:0;top:0}
+.review-screen>.modal-header h2{width:100%;padding-right:54px;box-sizing:border-box}
+.review-extra{width:408px;margin:16px 0 0 auto;gap:16px}
+.review-extra>.small-note{font-size:14px;line-height:21px;min-height:42px}
+@media(min-width:721px){
+ .review-form .field-group{height:192px;min-height:192px;align-content:start}
+ .review-screen label[data-parity-anchor="clarification-context"]{height:90px;margin-top:-2px}
+ .review-screen label[data-parity-anchor="clarification-context"] textarea{height:64px;min-height:64px}
+ .review-save{margin-top:-2px}
+}
+@media(max-width:720px){
+ .review-extra{width:100%;margin-top:12px;gap:12px}
+ .review-extra>.small-note{font-size:14px;line-height:18px;min-height:36px}
+ .review-save{margin-top:4px}
+}
+@media(min-width:721px){
+ .app-header,.review-screen>.focus-header{height:90px;margin-top:16px}
+ .profile-control{margin-top:0}
+ .review-screen>.focus-header>.portrait{margin-top:0}
+ .review-screen>.modal-header h2{font-size:34px;line-height:40px}
+ .review-form .field-group{display:flex;flex-direction:column;justify-content:space-between;padding:12px}
+}
+.checkin>.modal-header{position:relative}
+.checkin>.modal-header>div{width:100%;flex:none}
+.checkin>.modal-header h2{padding-right:54px}
+.checkin>.modal-header>.icon-button{position:absolute;right:0;top:0}
+@media(min-width:721px){
+ .patient-view>.daily-heading{width:552px}
+ .caregiver-wellbeing{position:relative}
+ .caregiver-wellbeing .caregiver-progress{position:absolute;left:450px;right:28px;top:70px;gap:13px;align-items:start}
+ .caregiver-wellbeing .caregiver-progress strong{display:block;line-height:22px}
+ .caregiver-wellbeing .progress-track{margin-top:10px}
+}
+@media(min-width:721px){
+ .checkin .portrait{width:68px;margin:12px 10px 0 0;font-size:12px;line-height:18px}
+ .checkin .portrait>img{width:68px;height:68px}
+ .checkin .portrait>span{line-height:18px}
+ .checkin-form{gap:0}
+ .checkin-form>.wellbeing-input+.wellbeing-input{margin-top:16px}
+ .checkin .wellbeing-input{height:112px;padding:17px;gap:8px}
+ .checkin .wellbeing-input .card-heading{height:26px;min-height:26px}
+ .checkin .wellbeing-input .icon-disc{width:32px;height:32px}
+ .checkin .sleep-card{height:192px;gap:0}
+ .checkin .sleep-card .card-heading{height:32px;min-height:32px}
+ .checkin .sleep-inputs{display:grid;grid-template-columns:196px 196px;gap:18px;padding-left:72px;margin-top:6px}
+ .checkin .sleep-inputs label{flex-direction:column-reverse;line-height:20px;font-size:14px;gap:4px}
+ .checkin .sleep-inputs input{height:58px;min-height:58px}
+ .checkin .choice-row>button{height:44px;min-height:44px;padding:8px 4px}
+ .checkin-form>.small-note{height:24px;min-height:24px;margin-top:14px;line-height:24px}
+ .checkin-actions{display:grid;grid-template-columns:370px 214px;gap:16px;margin-top:18px}
+ .checkin-actions>.button{height:48px;min-height:48px}
+}
+/* Voice is a focused recording flow, using the generated visual direction. */
+.voice-dialog{width:min(480px,calc(100vw - 24px));height:min(820px,calc(100dvh - 24px));max-height:calc(100dvh - 24px);margin:auto;padding:0;border:1px solid #e1e8df;border-radius:24px;background:#fff;box-shadow:0 22px 80px #163b3024;overflow:auto}
+.voice-dialog>.modal-header{position:absolute;z-index:2;top:12px;right:12px;width:44px;height:44px;margin:0;padding:0;min-height:0}
+.voice-dialog>.modal-header>div{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+.voice-dialog>.modal-header>.icon-button{width:44px;height:44px;border:0;background:transparent;color:#62766e}
+.voice-dialog>.modal-error{margin:64px 24px 0}
+.voice-panel{min-height:100%;display:flex;flex-direction:column;align-items:center;padding:32px 24px 20px;text-align:center}
+.voice-status{display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:calc(100% - 36px);height:28px;min-height:28px;padding:4px 12px;border-radius:20px;background:#f3f5f6;color:#5e7169;font-size:12px;line-height:20px;white-space:nowrap}
+.voice-status>span{width:7px;height:7px;flex-shrink:0;border-radius:50%;background:#8a9994}
+.voice-status.is-live{background:#edf8f0;color:#14594a}.voice-status.is-live>span{background:#15936d}
+.voice-orb{position:relative;display:grid;place-items:center;flex-shrink:0;width:128px;height:128px;margin:20px auto 18px;border-radius:50%;color:#075a50;background:radial-gradient(circle,#dff2e7 0 52%,#f1f9f4 53% 72%,transparent 73%)}
+.voice-orb>img{width:100%;height:100%;object-fit:contain}
+.voice-orb>svg{width:54px;height:54px;position:relative;z-index:1}
+.voice-orb.is-listening:before,.voice-orb.is-listening:after{content:"";position:absolute;inset:0;border:1px solid #bce0ce;border-radius:50%;animation:voice-breathe 2.8s ease-in-out infinite}
+.voice-orb.is-listening:after{inset:11px;animation-delay:1.4s}
+@keyframes voice-breathe{50%{transform:scale(1.08);opacity:.35}}
+.voice-panel>h2{margin:0;font-size:26px;line-height:32px;letter-spacing:-.7px;color:#102f2a;font-weight:700}
+.voice-description{max-width:350px;margin:8px 0 0;color:#718178;font-size:16px;line-height:24px}
+.voice-examples{width:100%;margin:22px 0 0}
+.voice-examples>p{margin:0 0 10px;font-size:10px;line-height:16px;letter-spacing:.7px;color:#809188}
+.voice-examples>div{display:grid;gap:8px}
+.voice-example{display:flex;align-items:center;gap:12px;min-height:50px;padding:8px 16px;text-align:left;border:1px solid #e9f0e9;border-radius:14px;background:#f7faf7;color:#254e43;font-size:14px;line-height:20px}
+.voice-example>img{width:32px;height:32px;object-fit:contain;flex-shrink:0}
+.voice-actions{display:flex;flex-direction:column;gap:10px;width:100%;margin-top:auto;padding-top:24px}
+.voice-actions>.button{width:100%;height:52px;min-height:52px;padding:12px 10px;border-radius:10px;font-size:16px;line-height:24px}
+.voice-actions>.button.primary{background:#05675b}.voice-actions>.button.primary:hover{background:#075348}
+.voice-actions>.button.secondary{border-color:#8eb5a8;background:#fff}
+.voice-privacy{display:flex;gap:8px;align-items:center;justify-content:center;flex-shrink:0;width:100%;margin:20px 0 0;padding-top:16px;border-top:1px solid #e5ebe5;color:#77887f;font-size:12px;line-height:20px}
+.voice-privacy>svg{flex-shrink:0}
+.voice-transcript{width:100%;padding:20px;margin-top:24px;border-radius:16px;background:#edf8f0;color:#164e42;font-size:17px;line-height:27px;min-height:92px;max-height:160px;overflow:auto}
+.voice-transcript>blockquote,.voice-transcript>p{margin:0}.voice-transcript>p{color:#607c71;font-size:15px}
+.voice-live-controls{display:flex;justify-content:center;gap:30px;padding:8px}
+.voice-live-controls>button{display:flex;flex-direction:column;align-items:center;gap:8px;min-width:100px;min-height:88px;background:transparent;border:0;padding:4px;color:#567063;font-size:13px;line-height:20px}
+.voice-live-controls>button>span{width:54px;height:54px;display:grid;place-items:center;border-radius:50%;border:1px solid #dce7df;background:#fff;color:#185749}
+.voice-live-controls>button:last-child>span{background:#fff6f4;border-color:#eccbc6;color:#b96759}
+.voice-record{width:100%;padding:18px;margin-top:24px;border:1px solid #deede2;border-radius:18px;background:linear-gradient(110deg,#f3faf4,#eaf6ee);text-align:left}
+.voice-record-heading{display:flex;align-items:center;gap:14px}.voice-record-heading>img{width:48px;height:48px;object-fit:contain;flex-shrink:0}
+.voice-record-heading small{color:#6c8175;font-size:10px;letter-spacing:.7px;line-height:18px}
+.voice-record-heading h3{margin:2px 0 0;font-size:20px;line-height:27px;color:#163c31;overflow-wrap:anywhere}
+.voice-record-detail{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:18px;padding-top:15px;border-top:1px solid #d8e7dc;font-size:14px;line-height:22px;color:#426e5f}
+.voice-record-detail>span,.voice-record-detail>strong{display:flex;align-items:center;gap:7px}.voice-record-detail>strong{color:#155e47;font-weight:600}
+.voice-error{width:100%;padding:12px 15px;background:#fff5ef;border:1px solid #efd9c9;border-radius:12px;color:#8f4d31;font-size:14px;line-height:21px;margin-top:20px}
+.voice-panel[data-voice-state="confirming"] .voice-orb,.voice-panel[data-voice-state="saved"] .voice-orb{width:112px;height:112px}
+.upload-zone{position:relative;overflow:hidden}.upload-zone input[type="file"]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.upload-zone:focus-within{outline:3px solid #82baa7;outline-offset:3px}
+@media(min-width:721px){
+ .voice-dialog{height:736px;max-height:calc(100dvh - 40px)}
+ .voice-panel{padding:32px 32px 24px}
+ .voice-orb{width:144px;height:144px}
+ .voice-panel>h2{font-size:28px;line-height:34px}
+ .voice-examples>div{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+ .voice-example{min-height:84px;padding:10px 6px;flex-direction:column;justify-content:center;gap:5px;text-align:center;font-size:13px;line-height:18px}
+ .voice-example>img{width:28px;height:28px}
+}
+@media(max-width:360px){
+ .voice-panel{padding:28px 18px 20px}.voice-panel>h2{font-size:24px;line-height:30px}.voice-orb{width:110px;height:110px;margin-top:16px;margin-bottom:12px}.voice-description{font-size:15px;line-height:22px}.voice-examples{margin-top:16px}.voice-example{min-height:46px}.voice-actions{padding-top:16px}.voice-privacy{font-size:11px;margin-top:16px}
+ .caregiver-view>.daily-heading{height:auto;min-height:92px}.caregiver-wellbeing{height:auto;min-height:186px}.caregiver-wellbeing .caregiver-progress{position:static;display:flex;margin-top:12px}.caregiver-wellbeing .sleep-attention-note{padding-left:0;margin-top:6px}
+}
+@media(prefers-reduced-motion:reduce){.voice-orb:before,.voice-orb:after{animation:none!important}}
+.modal-error{display:flex;flex-direction:column;align-items:stretch;gap:10px}
+@media(min-width:721px){
+ .review-main-form{display:grid;grid-template-columns:minmax(0,520fr) minmax(0,408fr);gap:16px 32px;align-items:start}
+ .review-main-form>.review-layout{display:contents}
+ .review-main-form .review-source{grid-column:1;grid-row:1/3;position:sticky;top:0}
+ .review-main-form .review-form{grid-column:2;grid-row:1}
+ .review-main-form>.review-extra{grid-column:2;grid-row:2;width:100%;margin:0}
+ .review-main-form .field-group{height:148px;min-height:148px}
+}
+@media(max-width:360px){
+ .review-screen .document-controls{height:88px;min-height:88px;display:grid;grid-template-columns:1fr;padding:4px;gap:2px}
+ .review-screen .document-controls .inline-controls{height:38px;justify-content:center}
+ .review-screen .document-controls .inline-controls:first-child{padding-right:36px}
+ .review-screen .document-toolbar{right:2px;top:3px}
+}
+/* Larger touch targets retain the existing visual spacing. */
+.text-button{min-height:44px}
+.primary-task>.source-button{min-height:44px;height:44px;margin-top:-7px;margin-bottom:-7px}
+.wellbeing-card>.full-width{height:44px;min-height:44px;margin-top:2px;margin-bottom:-4px}
+.wellbeing-card>.section-heading .icon-button.transparent{width:44px;height:44px;min-height:44px;margin-top:-9px;margin-bottom:-9px;position:relative;z-index:1}
+.checkin-date>input{height:44px;min-height:44px;margin-top:-8px;margin-bottom:-8px}
+.voice-examples>p{font-size:11px;line-height:17px}
+@media(min-width:721px){
+ .review-main-form .review-form .field-group{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);height:auto;min-height:132px;align-content:start;justify-content:normal;gap:8px;padding:12px}
+}

@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { isCalendarDate, scheduledOnDate, validPeriod, periodLabel } from "../schedule-period";
 import type { CareAction, CareState, DraftItem, ExtractionResult, Role, TaskOccurrence } from "../contracts";
+import { batchConfirmationBlocker, itemConfirmationBlockers } from "../contracts";
 
 export class CareError extends Error {
   constructor(message: string, public readonly status = 400) {
@@ -29,10 +31,15 @@ const fieldSchema = z.object({
 });
 const fieldsSchema = z.record(z.string().min(1).max(80), fieldSchema).refine((v) => Object.keys(v).length <= 30);
 const questionsSchema = z.array(text()).max(50);
+const periodSchema = z.object({
+  startDate: z.string().refine(isCalendarDate),
+  endDate: z.string().refine(isCalendarDate).nullable(),
+}).strict().refine(validPeriod, "O término deve ser igual ou posterior ao início.");
 const scheduleSchema = z.object({
   times: z.array(z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)).max(24).refine((v) => new Set(v).size === v.length),
   priority: z.enum(["important", "normal"]),
   toleranceMinutes: z.number().int().min(0).max(24 * 60),
+  period: periodSchema.optional(),
 }).strict();
 const itemSchema = z.object({
   id,
@@ -59,7 +66,9 @@ const actionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("check_in"), id: id.optional(), referenceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), sleepMinutes: z.number().int().min(0).max(24 * 60).nullable(), sleepQuality: z.enum(["low", "okay", "high"]).nullable().default(null), food: z.enum(["yes", "partial", "no"]).nullable(), mood: z.enum(["good", "okay", "bad"]).nullable(), requestId }).strict(),
   z.object({ type: z.literal("update_item"), itemId: id, title: text(200), instruction: text(8_000), fields: fieldsSchema, questions: questionsSchema, schedule: scheduleSchema.optional(), requestId }).strict(),
   z.object({ type: z.literal("add_item"), item: itemSchema, requestId }).strict(),
+  z.object({ type: z.literal("confirm_item_period"), itemId: id, period: periodSchema, requestId }).strict(),
   z.object({ type: z.literal("confirm_item"), itemId: id, requestId }).strict(),
+  z.object({ type: z.literal("confirm_items"), itemIds: z.array(id).min(1).max(150).refine(ids => new Set(ids).size === ids.length), requestId }).strict(),
   z.object({ type: z.literal("confirm_source_pages"), requestId }).strict(),
   z.object({ type: z.literal("resolve_uncertainty"), index: z.number().int().min(0), explanation: z.string().trim().min(10).max(2_000), requestId }).strict(),
   z.object({ type: z.literal("activate_plan"), requestId }).strict(),
@@ -99,11 +108,7 @@ function requireActive(state: StoredState): void {
 }
 
 export function itemBlockers(item: DraftItem, state: StoredState): string[] {
-  const blockers = [...item.questions];
-  if (Object.values(item.fields).some((field) => field.state === "ambiguous" || field.state === "illegible")) blockers.push("Há um campo ambíguo ou ilegível.");
-  if (!item.source.quote?.trim()) blockers.push("Informe a transcrição da fonte deste cuidado.");
-  if (state.document && (item.source.documentId !== state.document.id || !item.source.page || (state.document.pageCount !== null && item.source.page > state.document.pageCount))) blockers.push("Confira a página de origem deste cuidado.");
-  return blockers;
+  return itemConfirmationBlockers(item, state.document);
 }
 
 export function appendEvent(state: StoredState, role: Role, now: string, text: string): void {
@@ -118,6 +123,7 @@ export function ensureTodayTasks(state: StoredState, now: Date): boolean {
   const tasks = state.tasks as StoredTask[];
   let changed = false;
   for (const item of state.plan.items) {
+    if (!scheduledOnDate(item, date)) continue;
     // Only explicit caregiver schedules create times; clinical frequencies are never converted.
     const times = item.schedule?.times.length ? item.schedule.times : ["A combinar"];
     times.forEach((time, index) => {
@@ -143,6 +149,8 @@ export function applyAction(state: StoredState, role: Role, action: CareAction, 
       requireActive(state);
       const task = state.tasks.find((entry) => entry.id === action.taskId) as StoredTask | undefined;
       if (!task) throw new CareError("Tarefa não encontrada neste cuidado.", 404);
+      const item = state.plan.items.find((entry) => entry.id === task.itemId);
+      if (task.status === "pending" && (!item || !scheduledOnDate(item, task.referenceDate))) throw new CareError("Esta tarefa está fora do período conferido. Consulte o plano de cuidado.", 409);
       const informedAt = action.informedAt ?? at;
       if (new Date(informedAt).getTime() > now.getTime() + 60_000) throw new CareError("O horário informado não pode estar no futuro.");
       const previous = task.status;
@@ -186,6 +194,16 @@ export function applyAction(state: StoredState, role: Role, action: CareAction, 
       appendEvent(state, role, at, `${actor} ${existing ? "corrigiu" : "salvou"} um relato opcional de ${referenceDate}${action.sleepMinutes === null ? "; sono não informado" : `; sono informado: ${Math.floor(action.sleepMinutes / 60)}h${String(action.sleepMinutes % 60).padStart(2, "0")}`}.`);
       return;
     }
+    case "confirm_item_period": {
+      requireCaregiver(role);
+      requireActive(state);
+      const item = state.plan.items.find((entry) => entry.id === action.itemId);
+      if (!item || item.category !== "medication" || validPeriod(item.schedule?.period)) throw new CareError("Somente o período ainda não conferido de um medicamento pode ser completado.", 409);
+      item.schedule = { times: item.schedule?.times ?? [], priority: item.schedule?.priority ?? "normal", toleranceMinutes: item.schedule?.toleranceMinutes ?? 0, period: action.period };
+      appendEvent(state, role, at, `Cuidador conferiu o período de “${item.title}” com a fonte: ${periodLabel(action.period)}. Orientação original preservada.`);
+      ensureTodayTasks(state, now);
+      return;
+    }
     default:
       requireCaregiver(role);
       requireDraft(state);
@@ -219,6 +237,22 @@ export function applyAction(state: StoredState, role: Role, action: CareAction, 
       if (item.confirmed) return;
       item.confirmed = true;
       appendEvent(state, role, at, `Cuidador conferiu “${item.title}” com a fonte.`);
+      return;
+    }
+    case "confirm_items": {
+      if (!state.plan.sourceReviewed) throw new CareError("Confira todas as páginas da fonte antes de confirmar em lote.", 409);
+      if (state.plan.unresolved.length) throw new CareError("Esclareça as pendências gerais antes de confirmar em lote.", 409);
+      const items = action.itemIds.map(id => {
+        const item = state.plan.items.find(entry => entry.id === id);
+        if (!item) throw new CareError("Um cuidado do lote não foi encontrado. Nenhum item foi confirmado.", 404);
+        const blocker = batchConfirmationBlocker(item, state.document);
+        if (blocker) throw new CareError(`Nenhum item foi confirmado. “${item.title}”: ${blocker}`, 409);
+        return item;
+      });
+      const pending = items.filter(item => !item.confirmed);
+      if (!pending.length) return;
+      for (const item of pending) item.confirmed = true;
+      appendEvent(state, role, at, `Cuidador conferiu ${pending.length} ${pending.length === 1 ? "cuidado" : "cuidados"} em lote com a fonte. Os demais itens mantêm sua própria conferência.`);
       return;
     }
     case "confirm_source_pages":

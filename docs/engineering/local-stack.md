@@ -1,41 +1,62 @@
 # Ambiente local
 
-## O que está preparado
+O MVP roda em um único processo Next.js, com SQLite e arquivos privados no disco local. Não exige provisionar banco ou armazenamento externo para desenvolver.
 
-| Camada | Escolha | Situação |
-| --- | --- | --- |
-| Aplicação web | Next.js App Router, React e TypeScript | Base executável e checagem de tipos |
-| Estilo | Tailwind CSS | Configurado e usado na página de preparação |
-| Servidor | Route Handlers do Next.js | Endpoint de saúde; cliente OpenAI exclusivo do servidor |
-| IA para documentos | SDK OpenAI, Responses API, `gpt-6.1-sol` | Cliente e teste de conexão; extração ainda não implementada |
-| Validação | Zod e Structured Outputs | Teste técnico de JSON estruturado |
-| Visualização de PDF | PDF.js | Dependência instalada; visualizador ainda não implementado |
-| Persistência local | SQLite por `@libsql/client` | Driver verificado; esquema e dados do produto ainda não implementados |
-| Voz | GPT-Live + Decisions | Direção mantida no PRD; sessão e interação ainda não implementadas |
+| Camada | Implementação |
+| --- | --- |
+| Web | Next.js App Router, React, TypeScript, CSS responsivo |
+| Servidor | Route Handlers; chave OpenAI somente no servidor |
+| Persistência | SQLite por `@libsql/client`, em `.data/` |
+| Documentos | Original privado; PDF.js com páginas e zoom; JPEG, PNG ou texto |
+| Extração | Responses, `gpt-6.1-sol`, Structured Outputs e Zod |
+| Voz | GPT-Live `gpt-live-1`, WebRTC e Decisions `gpt-6-luna` |
+| Verificação | Node Test Runner e Playwright, além de inspeção no navegador |
 
-SQLite é uma escolha para desenvolvimento local. Para uma demonstração publicada com duas sessões, será necessário banco compartilhado e armazenamento privado persistente. Não publicar um arquivo SQLite em um filesystem efêmero de funções e tratá-lo como banco compartilhado. O provedor será definido na etapa de publicação.
+As versões exatas estão no lockfile. Os comandos usam Webpack porque o Turbopack falhou ao abrir a porta interna do compilador CSS neste ambiente.
 
-Os comandos usam o compilador Webpack, suportado pelo Next.js. Neste ambiente, o Turbopack falhou ao abrir a porta interna de um processo de CSS; o ajuste mantém o desenvolvimento local dentro das permissões disponíveis.
+## Execução
 
-## Credenciais
+```sh
+npm ci
+npm run doctor
+npm run dev
+```
 
-John autorizou o uso da `OPENAI_API_KEY` existente no ambiente. Não é necessário gerar outra chave para continuar a preparação. Não imprimir a chave, incluí-la no Git, retorná-la por uma rota ou repassá-la ao navegador.
+Abra `http://127.0.0.1:3000`. Uma rotina pronta permite alternar entre paciente e acompanhante. “Preparar novo plano” cria outro caso, sem apagar os anteriores.
 
-O `.env.example` contém apenas nomes de variáveis e valores não secretos. O teste da API usa uma frase sintética, `store: false`, limite de saída e nenhuma informação clínica. Nenhuma chamada à OpenAI ocorre ao abrir a página inicial ou durante o build.
+`OPENAI_API_KEY` é lida do ambiente ou de `.env.local`. John autorizou a chave existente; não é necessário gerar outra. Nunca usar `NEXT_PUBLIC_` para credenciais. Nenhuma chamada à OpenAI ocorre durante o build ou ao simplesmente abrir a rotina.
 
-Para a voz, o servidor negociará uma sessão conforme a documentação oficial; o navegador não deve receber a chave permanente. Confirmar acesso a GPT-Live e à permissão `api.decisions.write` antes de integrar a voz. Um teste bem-sucedido de Responses não comprova acesso a esses recursos.
+## Contratos do produto
 
-## Implementação seguinte
+- A extração gera um rascunho. O acompanhante corrige e confirma cada cuidado, esclarece pendências e declara que leu todas as páginas antes da ativação.
+- Horários operacionais são definidos explicitamente; a aplicação não inventa horários a partir de intervalos prescritos.
+- O plano ativo é fixo. Registros, correções e ajuda têm autor, horário e histórico.
+- A gravação é online. Tentativas repetidas usam a mesma identidade e não duplicam a ação. Falha de rede não é apresentada como sucesso.
+- Ajuda urgente tem acesso próprio e ligação independente para o SAMU. Resolver ajuda não conclui a tarefa.
 
-1. Implementar as duas visões e o vínculo autorizado, com o mesmo caso sintético.
-2. Implementar importação, visualização da fonte e revisão por item. A IA propõe um rascunho; a aplicação decide se pode ativá-lo.
-3. Persistir o plano confirmado, ocorrências, registros e ajuda. Usar identificação de tentativas para impedir duplicação.
-4. Conectar voz às mesmas ações validadas dos botões; informar sucesso somente depois da gravação.
-5. Verificar a jornada em duas sessões e nos tamanhos de celular e desktop antes de publicar.
+## Voz vinculada às ações
 
-As decisões de produto em `docs/product/` prevalecem sobre telas antigas. Não implementar versões de plano, OCR separado, seleção manual de regiões ou fila offline apenas porque aparecem em um mockup anterior.
+```mermaid
+sequenceDiagram
+    actor Pessoa
+    participant Web as Aplicativo
+    participant Live as GPT-Live
+    participant Decisions
+    participant API as Servidor e SQLite
+    Pessoa->>Web: Liga o microfone
+    Web->>API: Oferta WebRTC
+    API->>Live: Cria sessão com catálogo da rotina
+    Live->>Decisions: Classifica intenção e cuidado
+    Decisions-->>Web: Proposta estruturada
+    Web-->>Pessoa: Mostra ação e horário para conferir
+    Pessoa->>Web: Confirma
+    Web->>API: Mesma ação validada dos botões
+    API-->>Web: Gravação confirmada
+    Web-->>Pessoa: Registro salvo
+    Note over API,Web: A outra visão consulta o mesmo estado
+```
 
-## Referências técnicas
+A voz pode registrar tarefa feita/não feita, pouco/suficiente/muito sono, alimentação completa/parcial/ausente e pedido de apoio. Uma pergunta, intenção futura ou referência ambígua não autoriza registro. A aplicação pausa o microfone enquanto a proposta aguarda confirmação. Cancelar não grava; repetir a mesma decisão não abre outra proposta. Relatos de alimentação preservam os dados de sono e humor do mesmo dia.
 
 - [Instalação do Next.js](https://nextjs.org/docs/app/getting-started/installation)
 - [GPT-6.1 Sol](https://developers.openai.com/api/docs/models/gpt-6.1-sol)
@@ -48,3 +69,10 @@ As decisões de produto em `docs/product/` prevalecem sobre telas antigas. Não 
 A entrada oferece o caso pronto de demonstração e uma conta nova com um plano vazio. A conta nova tem o papel fixo de cuidador; autenticação, sessão e vínculo com seu caso são validados no servidor. As sessões de demonstração continuam separadas das contas, e conhecer um identificador de caso não permite abrir um caso de conta pelo endpoint de demonstração.
 
 Os dados são locais a esta instalação. Cadastro, login, saída e retorno à sessão fazem parte desse recorte; confirmação de e-mail, recuperação de senha e convites entre contas ficam para uma evolução. A publicação ainda exige persistência adequada ao ambiente de hospedagem.
+## Limites desta versão
+
+A demonstração usa identidades e casos sintéticos. Contas têm autenticação e isolamento do plano; o vínculo por convite entre duas contas ainda não está implementado.
+
+Para publicar, é preciso definir banco compartilhado e armazenamento privado persistente. SQLite em disco efêmero de funções não atende a esse requisito. Não há fila offline, push, aplicativo nativo, HealthKit ou mudança de tratamento pela IA.
+
+A extração não foi validada clinicamente. Não promete leitura confiável de manuscritos; campos incertos permanecem pendentes. Veja [validação](validation.md).
