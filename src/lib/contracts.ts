@@ -1,3 +1,4 @@
+import { timeBlocker } from "./schedule-times";
 import { validPeriod, hasReviewedSchedule } from "./schedule-period";
 
 export type Role = "patient" | "caregiver";
@@ -15,7 +16,7 @@ export type DraftItem = {
   source: { documentId: string | null; page: number | null; quote: string | null };
   questions: string[];
   confirmed: boolean;
-  schedule?: { times: string[]; priority: "important" | "normal"; toleranceMinutes: number; period?: SchedulePeriod; recurrence?: ScheduleRecurrence };
+  schedule?: { times: string[]; priority: "important" | "normal"; toleranceMinutes: number; timeOrigin?: "source" | "suggested" | "caregiver"; period?: SchedulePeriod; recurrence?: ScheduleRecurrence };
 };
 export type ExtractionResult = { items: DraftItem[]; unresolved: string[]; warnings: string[] };
 export type DocumentRef = { id: string; name: string; mimeType: string; url: string; pageCount: number | null };
@@ -46,6 +47,7 @@ export type CareAction =
   | { type: "add_item"; item: DraftItem; requestId: string }
   | { type: "confirm_source_pages"; requestId: string }
   | { type: "confirm_item_schedule"; itemId: string; schedule: NonNullable<DraftItem["schedule"]>; requestId: string }
+  | { type: "confirm_item_times"; itemId: string; times: string[]; requestId: string }
   | { type: "confirm_item_period"; itemId: string; period: SchedulePeriod; requestId: string }
   | { type: "confirm_item"; itemId: string; requestId: string }
   | { type: "confirm_items"; itemIds: string[]; requestId: string }
@@ -54,6 +56,8 @@ export type CareAction =
 
 export function itemConfirmationBlockers(item: DraftItem, document: DocumentRef | null): string[] {
   const blockers = [...item.questions];
+  const timing = timeBlocker(item);
+  if (timing) blockers.push(timing);
   if (item.category !== "medication" && !hasReviewedSchedule(item)) blockers.push("Confira os dias da rotina, as datas específicas ou escolha somente consulta. Rotinas diárias e semanais precisam de período.");
   if (item.category === "medication" && !validPeriod(item.schedule?.period)) blockers.push("Confira o início e o término do medicamento, ou confirme que a orientação não define término.");
   if (Object.values(item.fields).some((field) => field.state === "ambiguous" || field.state === "illegible")) blockers.push("Há um campo ambíguo ou ilegível.");

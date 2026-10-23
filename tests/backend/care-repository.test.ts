@@ -133,20 +133,21 @@ test("role restrictions are enforced at the mutation and original-storage bounda
   await assert.rejects(repository.mutate(caregiver.token, { type: "request_help", message: "Teste", urgent: false, requestId: req() }), expectStatus(403));
 });
 
-test("import strips AI confirmations and schedules, retains absence, and never infers an interval", async (t) => {
+test("import replaces AI schedules with labelled operational proposals and retains missing source data", async (t) => {
   const { repository } = await fixture(t);
   const caregiver = await repository.startDemo({ scenario: "setup", role: "caregiver" });
   const imported = await importOne(repository, caregiver.token, { items: [extractedItem({ confirmed: true, schedule: { times: ["08:00", "16:00", "23:00"], priority: "important", toleranceMinutes: 10 } })], unresolved: [], warnings: [] });
   assert.equal(imported.plan.items[0].confirmed, false);
-  assert.equal(imported.plan.items[0].schedule, undefined);
+  assert.deepEqual(imported.plan.items[0].schedule?.times, ["08:00", "14:00", "20:00"]);
+  assert.equal(imported.plan.items[0].schedule?.timeOrigin, "suggested");
   assert.equal(imported.plan.sourceReviewed, false);
   assert.equal(imported.plan.items[0].source.documentId, imported.document!.id);
   assert.equal(imported.plan.items[0].fields.duração.value, null);
   await assert.rejects(repository.mutate(caregiver.token, { type: "activate_plan", requestId: req() }), expectStatus(409));
   await assert.rejects(repository.mutate(caregiver.token, { type: "confirm_item", itemId: imported.plan.items[0].id, requestId: req() }), /início e o término/);
   const active = await activate(repository, caregiver.token, imported);
-  assert.equal(active.tasks.length, 1);
-  assert.equal(active.tasks[0].time, "A combinar");
+  assert.equal(active.tasks.length, 3);
+  assert.deepEqual(active.tasks.map(task => task.time), ["08:00", "14:00", "20:00"]);
   assert.equal(active.tasks[0].priority, "normal");
 });
 
@@ -171,7 +172,7 @@ test("text confirmation keeps document and quote checks, while paged sources req
   const caregiver = await repository.startDemo({ scenario: "setup", role: "caregiver" });
   const state = await importOne(repository, caregiver.token);
   const item = state.plan.items[0];
-  const withSource = (source: Partial<DraftItem["source"]>) => ({ ...item, schedule: { times: [], priority: "normal" as const, toleranceMinutes: 0, period: { startDate: "2026-10-23", endDate: "2026-10-29" } }, source: { ...item.source, ...source } });
+  const withSource = (source: Partial<DraftItem["source"]>) => ({ ...item, schedule: { times: ["08:00", "14:00", "20:00"], priority: "normal" as const, toleranceMinutes: 0, period: { startDate: "2026-10-23", endDate: "2026-10-29" } }, source: { ...item.source, ...source } });
   assert.deepEqual(itemBlockers(withSource({ page: null }), state), []);
   assert.ok(itemBlockers(withSource({ page: null, documentId: randomUUID() }), state).length);
   assert.ok(itemBlockers(withSource({ page: null, quote: " " }), state).length);
@@ -212,9 +213,9 @@ test("explicit operational times create occurrences and the active plan is immut
   const caregiver = await repository.startDemo({ scenario: "setup", role: "caregiver" });
   let state = await importOne(repository, caregiver.token);
   const item = state.plan.items[0];
-  state = await repository.mutate(caregiver.token, { type: "update_item", itemId: item.id, title: item.title, instruction: item.instruction, fields: item.fields, questions: [], schedule: { times: ["07:00", "19:00"], priority: "important", toleranceMinutes: 45 }, requestId: req() });
+  state = await repository.mutate(caregiver.token, { type: "update_item", itemId: item.id, title: item.title, instruction: item.instruction, fields: item.fields, questions: [], schedule: { times: ["07:00", "13:00", "19:00"], priority: "important", toleranceMinutes: 45 }, requestId: req() });
   state = await activate(repository, caregiver.token, state);
-  assert.deepEqual(state.tasks.map((entry) => entry.time), ["07:00", "19:00"]);
+  assert.deepEqual(state.tasks.map((entry) => entry.time), ["07:00", "13:00", "19:00"]);
   assert.ok(state.tasks.every((entry) => entry.toleranceMinutes === 45));
   await assert.rejects(repository.mutate(caregiver.token, { type: "update_item", itemId: item.id, title: "Mudou", instruction: item.instruction, fields: item.fields, questions: [], requestId: req() }), expectStatus(409));
   await assert.rejects(repository.mutate(caregiver.token, { type: "add_item", item: extractedItem(), requestId: req() }), expectStatus(409));
