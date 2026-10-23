@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { DocumentRef, DraftItem } from "../contracts";
-import { ensureTodayTasks, type StoredState } from "./care-domain";
+import { dateInBrazil, ensureTodayTasks, type StoredState } from "./care-domain";
 
 export const demoSource = `PLANO DE CUIDADOS
 Pessoa cuidada: Helena Costa. Cuidadora: Marina Costa.
@@ -14,6 +14,11 @@ Horários acordados com a cuidadora: medicamento às 08:00 e 20:00; alimentaçã
 
 export function createDemoState(demoId: string, scenario: "ready" | "setup", document: DocumentRef | null, now: Date): StoredState {
   const at = now.toISOString();
+  // This synthetic scenario starts today by design, not by interpreting a prescription.
+  const startDate = dateInBrazil(now);
+  const end = new Date(`${startDate}T12:00:00Z`);
+  end.setUTCDate(end.getUTCDate() + 6);
+  const medicationPeriod = { startDate, endDate: end.toISOString().slice(0, 10) };
   const items: DraftItem[] = scenario === "ready" ? [
     {
       id: randomUUID(), title: "Medicamento A", category: "medication",
@@ -28,7 +33,7 @@ export function createDemoState(demoId: string, scenario: "ready" | "setup", doc
         condições: { value: null, state: "missing", sourceText: null },
       },
       source: { documentId: document!.id, page: 1, quote: "Medicamento A, 500 mg: tomar 1 comprimido por via oral às 08:00 e 20:00 por 7 dias." },
-      questions: [], confirmed: true, schedule: { times: ["08:00", "20:00"], priority: "important", toleranceMinutes: 30 },
+      questions: [], confirmed: true, schedule: { times: ["08:00", "20:00"], priority: "important", toleranceMinutes: 30, period: medicationPeriod },
     },
     {
       id: randomUUID(), title: "Alimentação", category: "nutrition",
