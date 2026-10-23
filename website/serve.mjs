@@ -10,8 +10,8 @@ createServer(async (req, res) => {
   if (!['GET','HEAD'].includes(req.method)) { res.writeHead(405,{'Allow':'GET, HEAD'}).end(); return; }
   try {
     const pathname = decodeURIComponent(new URL(req.url, `http://${host}:${port}`).pathname);
-    const relative = pathname === '/' ? 'index.html' : pathname.slice(1);
-    if (relative.split('/').some(part => part.startsWith('.')) || !['index.html','styles.css','app.js','config.js'].includes(relative) && !relative.startsWith('assets/')) throw new Error('Not public');
+    const relative = pathname === '/' ? 'index.html' : ['/video-demo', '/video-demo/'].includes(pathname) ? 'video-demo/index.html' : pathname.slice(1);
+    if (relative.split('/').some(part => part.startsWith('.')) || !['index.html','styles.css','app.js','config.js','video-demo/index.html','video-demo/page.css','video-demo/config.js','video-demo/redirect.js'].includes(relative) && !relative.startsWith('assets/')) throw new Error('Not public');
     const requested = resolve(root, relative);
     const path = await realpath(requested);
     if (!path.startsWith(root + sep) || !(await stat(path)).isFile()) throw new Error('Not public');
