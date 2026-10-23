@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useId, useRef, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { XIcon, HandHeartIcon, SpinnerGapIcon } from "@phosphor-icons/react";
 import type { CareAction, CareState } from "@/lib/contracts";
@@ -25,7 +25,7 @@ export function Portrait({ name, role }: { name: string; role: "patient" | "care
 }
 
 export const ActionErrorContext = createContext<string | null>(null);
-export const ActionFeedbackContext = createContext({ busy: "", notice: "" });
+export const ActionFeedbackContext = createContext({ busy: "", notice: "", actionId: 0 });
 
 export type ActionInput = CareAction extends infer T ? T extends CareAction ? Omit<T, "requestId"> : never : never;
 export type RunAction = (action: ActionInput, message?: string) => Promise<boolean>;
@@ -53,6 +53,9 @@ export function Modal({ title, subtitle, children, onClose, wide = false, varian
   const id = useId();
   const error = useContext(ActionErrorContext);
   const feedback = useContext(ActionFeedbackContext);
+  // A newly opened dialog must not claim feedback from an earlier operation.
+  const [openedAtAction] = useState(feedback.actionId);
+  const hasCurrentAction = feedback.actionId > openedAtAction;
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const element = dialog.current;
@@ -64,8 +67,8 @@ export function Modal({ title, subtitle, children, onClose, wide = false, varian
   return <dialog ref={dialog} className={`modal ${wide ? "modal-wide" : ""} ${variant}`} data-parity-screen={variant || undefined} aria-labelledby={id} onCancel={onClose} onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     {headerContent}
     <div className="modal-header" data-parity-anchor="heading-group"><div><h2 id={id} data-parity-anchor="heading-type">{title}</h2>{subtitle && <p className="muted">{subtitle}</p>}</div><button className="icon-button" aria-label="Fechar" onClick={onClose}><XIcon size={24} /></button></div>
-    {(feedback.busy || feedback.notice) && <p className="modal-feedback" role="status" aria-live="polite">{feedback.busy ? <Busy>{feedback.busy}</Busy> : feedback.notice}</p>}
-    {error && <p className="error-message modal-error" role="alert">{error} Corrija os dados ou tente a ação novamente.</p>}
+    {hasCurrentAction && (feedback.busy || feedback.notice) && <p className="modal-feedback" role="status" aria-live="polite">{feedback.busy ? <Busy>{feedback.busy}</Busy> : feedback.notice}</p>}
+    {hasCurrentAction && error && <p className="error-message modal-error" role="alert">{error} Corrija os dados ou tente a ação novamente.</p>}
     {children}
   </dialog>;
 }
