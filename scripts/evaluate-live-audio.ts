@@ -8,6 +8,7 @@ import nextEnv from "@next/env";
 import { LiveWS } from "openai/resources/live/ws";
 import { buildLiveSessionConfig, VOICE_POLICY_VERSION } from "../src/lib/ai/live";
 import { createAIClient } from "../src/lib/ai/client";
+import { buildVoiceContext } from "../src/lib/voice-context";
 import type { CareState } from "../src/lib/contracts";
 
 nextEnv.loadEnvConfig(process.cwd());
@@ -16,10 +17,11 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 const sha256 = (input: string | Buffer) => createHash("sha256").update(input).digest("hex");
 const normalize = (text: string) => text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 const contextual = process.argv.includes("--contextual");
-const claimPhrase = contextual ? "Já concluí." : "Já concluí a caminhada leve.";
-const questionPhrase = "O que falta fazer?";
+const stateAwareness = process.argv.includes("--state-awareness");
+const claimPhrase = stateAwareness ? "E agora, o que falta fazer? Preciso repetir algum remédio?" : contextual ? "Já concluí." : "Já concluí a caminhada leve.";
+const questionPhrase = stateAwareness ? "O remédio das oito e o das vinte estão registrados como feitos? O que ainda falta fazer?" : "O que falta fazer?";
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-const directory = `output/ai/voice-real/${stamp}-${contextual ? "contextual" : "named"}`;
+const directory = `output/ai/voice-real/${stamp}-${stateAwareness ? "state-awareness" : contextual ? "contextual" : "named"}`;
 await mkdir(directory, { recursive: true });
 const temporaryDirectory = await mkdtemp(join(tmpdir(), "cuidado-live-synthetic-"));
 
@@ -40,11 +42,16 @@ const state: CareState = {
     { id: "walk-light-0900", itemId: "care-walk", title: "Caminhada leve", instruction: "Caminhar conforme orientação já confirmada.", time: "09:00", status: "pending", priority: "normal", recordedAt: null },
   ],
 };
+if (stateAwareness) state.tasks.unshift(
+  { id: "med-0800", itemId: "care-med-am", title: "Remédio das oito", instruction: "Conforme plano previamente confirmado.", time: "08:00", status: "done", priority: "important", recordedAt: new Date().toISOString() },
+  { id: "med-2000", itemId: "care-med-pm", title: "Remédio das vinte", instruction: "Conforme plano previamente confirmado.", time: "20:00", status: "not_done", priority: "important", recordedAt: new Date().toISOString() },
+);
 const config = buildLiveSessionConfig(state);
 if (!config.triggers?.some((trigger) => trigger.type === "decisions" && trigger.event_type === "session.input_transcript.delta")) {
   throw new Error("Preflight: buildLiveSessionConfig não contém trigger de entrada. Nenhuma sessão foi criada.");
 }
 const sourceBefore = sha256(await readFile("src/lib/ai/live.ts"));
+const contextBefore = sha256(await readFile("src/lib/voice-context.ts"));
 const [question, claim] = await Promise.all([synthesize(questionPhrase, "question"), synthesize(claimPhrase, "claim")]);
 
 type Transcript = { eventId: string; delta: string; startMs: number; endMs: number; receivedAt: string };
@@ -66,6 +73,7 @@ let audioOffset = 0;
 let audioDone: (() => void) | null = null;
 let audioTimer: ReturnType<typeof setInterval> | undefined;
 let claimStartMs = Number.POSITIVE_INFINITY;
+let contextUpdateAcknowledged = false;
 const client = createAIClient();
 const ws = new LiveWS(client);
 const log = (event: string, details: Record<string, unknown> = {}) => console.log(JSON.stringify({ event, ...details }));
@@ -94,6 +102,9 @@ ws.on("event", (event) => {
     outputAudioBytes += Buffer.byteLength(event.delta, "base64");
   } else if (event.type === "session.closed") {
     closed = true; usage = event.usage; log("session.closed");
+  } else if (event.type === "session.instructions.appended" && event.client_event_id === "state-update") {
+    contextUpdateAcknowledged = true;
+    log("session.instructions.appended", { clientEventId: event.client_event_id });
   }
 });
 ws.on("error", (error) => {
@@ -124,6 +135,9 @@ let questionEndMs = 0;
 let claimEndMs = 0;
 let questionReplyObserved = false;
 let claimResultObserved = false;
+let firstReply = "";
+let secondReply = "";
+let replyBoundary = 0;
 try {
   ws.send({ type: "session.start", event_id: "audio-test-start", session: { ...config, audio: { format: { type: "audio/pcm", rate: 16000 } } } });
   if (!await waitFor(() => started, 20_000)) throw new Error("Sessão Live não iniciou dentro do prazo.");
@@ -145,14 +159,24 @@ try {
   await play(question.bytes);
   questionEndMs = audioTimelineMs;
   const questionFinishedAt = Date.now();
-  questionReplyObserved = await waitFor(() => outputTranscripts.length > 0 && Date.now() - lastOutputTranscriptAt > 1400 && Date.now() - questionFinishedAt > 1800, 18_000);
+  questionReplyObserved = await waitFor(() => outputTranscripts.length > 0 && Date.now() - lastOutputTranscriptAt > (stateAwareness ? 3000 : 1400) && Date.now() - questionFinishedAt > (stateAwareness ? 5000 : 1800), stateAwareness ? 25_000 : 18_000);
+  firstReply = outputTranscripts.map((segment) => segment.delta).join("");
   log("question.reply", { observed: questionReplyObserved, transcript: outputTranscripts.map((segment) => segment.delta).join("") });
+  if (stateAwareness) {
+    const updated: CareState = { ...state, revision: 2, updatedAt: new Date().toISOString(), tasks: state.tasks.map((task) => task.id === "walk-light-0900" ? { ...task, status: "done", recordedAt: new Date().toISOString() } : task) };
+    ws.send({ type: "session.instructions.append", event_id: "state-update", delegation_id: null, content: buildVoiceContext(updated) });
+    if (!await waitFor(() => contextUpdateAcknowledged, 8_000)) throw new Error("Atualização de contexto não foi confirmada pelo Live.");
+    replyBoundary = outputTranscripts.length;
+  }
   claimStartMs = audioTimelineMs;
   log("play.claim", { phrase: claimPhrase, startMs: claimStartMs });
   await play(claim.bytes);
   claimEndMs = audioTimelineMs;
-  claimResultObserved = await waitFor(() => !!matchingDecision(), 15_000);
+  claimResultObserved = stateAwareness
+    ? await waitFor(() => outputTranscripts.length > replyBoundary && Date.now() - lastOutputTranscriptAt > 3000, 25_000)
+    : await waitFor(() => !!matchingDecision(), 15_000);
   await waitFor(() => lastOutputTranscriptAt > 0 && Date.now() - lastOutputTranscriptAt > 1500, 6_000);
+  secondReply = outputTranscripts.slice(replyBoundary).map((segment) => segment.delta).join("");
 } catch (error) {
   errors.push({ code: "test_execution", message: error instanceof Error ? error.message : "Falha do teste" });
 } finally {
@@ -167,24 +191,45 @@ try {
 const questionHeard = normalize(inputTranscripts.filter((segment) => segment.startMs < claimStartMs).map((segment) => segment.delta).join(""));
 const claimHeard = normalize(inputTranscripts.filter((segment) => segment.endMs >= claimStartMs).map((segment) => segment.delta).join(""));
 const sourceAfter = sha256(await readFile("src/lib/ai/live.ts"));
-const checks = {
+const contextAfter = sha256(await readFile("src/lib/voice-context.ts"));
+const ordinaryChecks = {
   sessionStarted: started,
   questionTranscribed: /falta fazer/.test(questionHeard),
   assistantNamedTarget: /caminhada leve/.test(normalize(outputTranscripts.map((segment) => segment.delta).join(""))),
   claimTranscribed: /conclui/.test(claimHeard) && (contextual || /caminhada/.test(claimHeard)),
   triggerDecisionCorrelated: !!matchingDecision(),
   questionDidNotCompleteTask: !decisions.some((decision) => (decision.sourceEndMs ?? Number.POSITIVE_INFINITY) < claimStartMs && decision.action === "mark_done"),
-  sourceUnchanged: sourceBefore === sourceAfter,
+  sourceUnchanged: sourceBefore === sourceAfter && contextBefore === contextAfter,
   sessionClosed: closed,
   noErrors: errors.length === 0,
 };
+const first = normalize(firstReply);
+const second = normalize(secondReply);
+const noRepeatAdvice = (text: string) => !/(?<!nao )\b(repita|tome novamente|tome de novo|compense)\b/.test(text);
+const checks = stateAwareness ? {
+  sessionStarted: started,
+  questionsTranscribed: /oito/.test(questionHeard) && /vinte/.test(questionHeard) && /repetir/.test(claimHeard),
+  firstReplyReceived: questionReplyObserved,
+  firstReplyReferencesEightDone: /(oito|08:00|8 horas)/.test(first) && /(feito|tomado|realizado|concluido)/.test(first),
+  firstReplyReferencesTwentyNotDone: /(vinte|20:00|20 horas)/.test(first) && /(nao feito|nao foi|nao realizado|nao tomou|nao tomado)/.test(first),
+  firstReplyReferencesWalkPending: /caminhada/.test(first) && /(falta|pendente)/.test(first),
+  contextUpdateAcknowledged,
+  secondReplyReceived: claimResultObserved,
+  secondReplyHasNoPending: /(nada|nenhum|nao ha|nao falta|sem pend|tudo.*(feito|concluido))/.test(second),
+  noRepeatMedicationAdvice: noRepeatAdvice(first) && noRepeatAdvice(second),
+  questionsDidNotCreateDoneActions: !decisions.some((decision) => decision.action === "mark_done"),
+  sourceUnchanged: sourceBefore === sourceAfter && contextBefore === contextAfter,
+  sessionClosed: closed,
+  noErrors: errors.length === 0,
+} : ordinaryChecks;
 const report = {
-  generatedAt: new Date().toISOString(), kind: contextual ? "contextual_completion" : "named_completion", policyVersion: VOICE_POLICY_VERSION,
-  source: { path: "src/lib/ai/live.ts", sha256Before: sourceBefore, sha256After: sourceAfter, configSha256: sha256(JSON.stringify(config)) },
-  method: "Áudio sintético pt-BR da voz macOS Luciana, PCM16 mono 16kHz, transmitido em blocos de 50ms com silêncio contínuo. Nenhum input_text, decision.item.create, decision.create ou comentário foi enviado.",
+  generatedAt: new Date().toISOString(), kind: stateAwareness ? "state_awareness" : contextual ? "contextual_completion" : "named_completion", policyVersion: VOICE_POLICY_VERSION,
+  source: { path: "src/lib/ai/live.ts", sha256Before: sourceBefore, sha256After: sourceAfter, voiceContextPath: "src/lib/voice-context.ts", contextSha256Before: contextBefore, contextSha256After: contextAfter, configSha256: sha256(JSON.stringify(config)) },
+  method: `Áudio sintético pt-BR da voz macOS Luciana, PCM16 mono 16kHz, transmitido em blocos de 50ms com silêncio contínuo. Nenhum input_text, decision.item.create, decision.create ou comentário foi enviado.${stateAwareness ? " Uma revisão sintética de estado foi enviada por session.instructions.append e aguardou confirmação antes da segunda pergunta." : ""}`,
   speechInputs: [question.metadata, claim.metadata], audioTimeline: { questionStartMs, questionEndMs, claimStartMs, claimEndMs, sentDurationMs: audioTimelineMs },
   sessionId, model: config.model, transport: "websocket", questionReplyObserved, claimResultObserved,
   inputTranscripts, outputTranscripts, decisions, outputAudioBytes, usage, events, errors,
+  stateAwareness: stateAwareness ? { initialTasks: state.tasks, initialRevision: 1, updatedRevision: 2, firstReply, secondReply, note: "Checagens de conteúdo são heurísticas; a transcrição completa requer conferência do agente." } : null,
   checks, passed: Object.values(checks).every(Boolean), actionsExecuted: false, manuallyCreatedDecisions: 0, textItemsSent: 0,
   limitations: ["Não executa a UI nem confirma visualmente cartão de sugestão.", "Áudio sintético não prova microfone, sotaques naturais, reprodução física ou WebRTC.", "Confirma a origem de trigger correlacionando source_event_id com a transcrição recebida; não usa avaliação textual artificial."],
   sources: ["https://developers.openai.com/api/docs/guides/voice-websockets", "https://developers.openai.com/api/docs/guides/decisions-voice#react-to-transcripts"],

@@ -278,3 +278,51 @@ test("HTTP errors retain their status across separate route bundles and hot relo
   assert.equal(response.status, 401);
   assert.deepEqual(await response.json(), { error: "Sessão expirada." });
 });
+
+test("batch confirmation is atomic, idempotent, and leaves ambiguous items pending", async (t) => {
+  const { repository } = await fixture(t);
+  const caregiver = await repository.startDemo({ scenario: "setup", role: "caregiver" });
+  const clear = () => extractedItem({ fields: {
+    nome: { value: "Medicamento da fonte", state: "readable", sourceText: "Medicamento da fonte" },
+    concentração: { value: "500 mg", state: "readable", sourceText: "500 mg" },
+    dose: { value: "1 comprimido", state: "readable", sourceText: "1 comprimido" },
+    via: { value: "oral", state: "readable", sourceText: "oral" },
+    frequência: { value: "3 vezes ao dia", state: "readable", sourceText: "3 vezes ao dia" },
+    duração: { value: null, state: "missing", sourceText: null },
+  } });
+  let state = await importOne(repository, caregiver.token, { items: [clear(), clear(), extractedItem({ questions: ["Qual é a dose?"] })], unresolved: [], warnings: [] });
+  const [first, second, uncertain] = state.plan.items;
+  await assert.rejects(repository.mutate(caregiver.token, { type: "confirm_items", itemIds: [first.id], requestId: req() }), expectStatus(409));
+  state = await repository.mutate(caregiver.token, { type: "confirm_source_pages", requestId: req() });
+  const revision = state.revision;
+  await assert.rejects(repository.mutate(caregiver.token, { type: "confirm_items", itemIds: [first.id, uncertain.id], requestId: req() }), expectStatus(409));
+  const unchanged = await repository.getState(caregiver.token);
+  assert.equal(unchanged.revision, revision);
+  assert.ok(unchanged.plan.items.every(item => !item.confirmed));
+  const action = { type: "confirm_items", itemIds: [first.id, second.id], requestId: req() };
+  state = await repository.mutate(caregiver.token, action);
+  assert.deepEqual(state.plan.items.map(item => item.confirmed), [true, true, false]);
+  assert.equal(state.revision, revision + 1);
+  assert.match(state.timeline[0].text, /2 cuidados em lote/);
+  assert.equal(state.plan.status, "draft");
+  assert.equal((await repository.mutate(caregiver.token, action)).revision, state.revision);
+  await assert.rejects(repository.mutate(caregiver.token, { type: "activate_plan", requestId: req() }), expectStatus(409));
+});
+
+test("batch confirmation rejects critical absence, global doubts, unknown IDs, duplicate IDs and patient role", async (t) => {
+  const { repository } = await fixture(t);
+  const caregiver = await repository.startDemo({ scenario: "setup", role: "caregiver" });
+  let state = await importOne(repository, caregiver.token, { items: [extractedItem()], unresolved: ["Falta conferir uma página."], warnings: [] });
+  const id = state.plan.items[0].id;
+  await repository.mutate(caregiver.token, { type: "confirm_source_pages", requestId: req() });
+  await assert.rejects(repository.mutate(caregiver.token, { type: "confirm_items", itemIds: [id], requestId: req() }), expectStatus(409));
+  await repository.mutate(caregiver.token, { type: "resolve_uncertainty", index: 0, explanation: "Página conferida com a fonte original.", requestId: req() });
+  state = await repository.mutate(caregiver.token, { type: "confirm_source_pages", requestId: req() });
+  const revision = state.revision;
+  await assert.rejects(repository.mutate(caregiver.token, { type: "confirm_items", itemIds: [id], requestId: req() }), (error: unknown) => error instanceof CareError && error.status === 409 && error.message.includes("campo essencial"));
+  await assert.rejects(repository.mutate(caregiver.token, { type: "confirm_items", itemIds: [id, id], requestId: req() }), expectStatus(400));
+  await assert.rejects(repository.mutate(caregiver.token, { type: "confirm_items", itemIds: ["unknown"], requestId: req() }), expectStatus(404));
+  const patient = await repository.startDemo({ scenario: "setup", role: "patient", demoId: state.demoId });
+  await assert.rejects(repository.mutate(patient.token, { type: "confirm_items", itemIds: [id], requestId: req() }), expectStatus(403));
+  assert.equal((await repository.getState(caregiver.token)).revision, revision);
+});

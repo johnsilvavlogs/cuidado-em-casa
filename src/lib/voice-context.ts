@@ -8,3 +8,18 @@ export function buildVoiceContext(state: CareState): string {
     checkIns: state.checkIns,
   })}`;
 }
+
+/** Live append events have a 500-token limit; send small complete rows in order. */
+export function buildVoiceContextUpdates(state: CareState): string[] {
+  const heading = `Estado confirmado, revisão ${state.revision}. Substitui revisões anteriores. done=feito, not_done=não realizado, pending=sem registro. Ao perguntar o que falta, cite só pending; nunca recomende repetir done ou compensar not_done. Rotina em partes:`;
+  const rows = state.tasks.map(({ title, time, status }) => JSON.stringify({ cuidado: title.slice(0, 180), hora: time, status }));
+  const latest = state.checkIns.at(-1);
+  if (latest) rows.push(JSON.stringify({ relato: { sono: latest.sleepQuality, minutos: latest.sleepMinutes, alimentacao: latest.food, humor: latest.mood } }));
+  const chunks = [heading];
+  for (const row of rows) {
+    const last = chunks.length - 1;
+    if (chunks[last].length + row.length + 1 < 850) chunks[last] += `\n${row}`;
+    else chunks.push(`Revisão ${state.revision}, continuação:\n${row}`);
+  }
+  return chunks;
+}

@@ -21,9 +21,13 @@ As três diferenças de extração foram contexto anatômico/lateralidade de cab
 
 Os testes de domínio cobrem sessões, isolamento de casos, papéis, importação, confirmação, ativação, horários explícitos, correções, mudança de dia, ajuda normal/urgente, bem-estar opcional, originais privados e repetição de pedidos.
 
-O gatilho de Decisions acompanha as transcrições do paciente. A interface correlaciona a decisão ao fragmento mais recente, espera a pausa na fala e ignora respostas antigas/duplicadas. O estado persistido da rotina é enviado ao conectar e atualizado quando sua revisão muda. A integração da voz verifica que nenhuma decisão grava automaticamente; o cancelamento preserva o estado; a confirmação usa a ocorrência correta; repetir a decisão não duplica a proposta. Sono e alimentação preservam os demais campos do relato. O acompanhante lê o mesmo registro após recarregar. Sem permissão de microfone, os botões continuam funcionando.
+O gatilho de Decisions acompanha as transcrições do paciente. A interface correlaciona os eventos, ignora respostas antigas/duplicadas e também envia a fala acumulada à Decisions após uma pausa. Essa segunda via aceita pedidos explícitos como “pode concluir a caminhada leve”, sem depender de um fragmento isolado. O estado em tempo real é enviado em mensagens compactas para respeitar o limite do Live. O estado persistido da rotina é enviado ao conectar e atualizado quando sua revisão muda. A integração da voz verifica que nenhuma decisão grava automaticamente; o cancelamento preserva o estado; a confirmação usa a ocorrência correta; repetir a decisão não duplica a proposta. Sono e alimentação preservam os demais campos do relato. O acompanhante lê o mesmo registro após recarregar. Sem permissão de microfone, os botões continuam funcionando.
 
 O foco final é mobile, conforme pedido: 320 px e 390×844. As inspeções de desktop anteriores são históricas e não fazem parte do aceite final. As referências visuais, a anatomia congelada, capturas e medições ficam em `output/iterate/`. Evidências são transitórias e não entram no Git; a documentação de produto e os assets finais entram.
+
+A validação final de voz usou Chrome com viewport 390×844, áudio sintético em português, Live/WebRTC e Decisions reais. O cartão foi confirmado por Computer Use, e o servidor gravou uma única conclusão; a sessão do cuidador leu o mesmo estado. O contexto enviado depois da confirmação incluiu a caminhada como feita. Foram aprovados quatro cenários mobile de regressão e esse percurso real.
+
+A revisão de documentos permite confirmar em lote os itens claros após a conferência de todas as páginas. O servidor valida o lote inteiro antes de alterar qualquer item; dúvidas, ausência de campos essenciais e itens desconhecidos bloqueiam o lote. A ação não ativa o plano. Root verificou o percurso de sete itens no navegador mobile; testes de domínio verificaram recusa atômica e repetição idempotente.
 
 ## Reproduzir
 

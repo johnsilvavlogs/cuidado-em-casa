@@ -40,5 +40,28 @@ export type CareAction =
   | { type: "add_item"; item: DraftItem; requestId: string }
   | { type: "confirm_source_pages"; requestId: string }
   | { type: "confirm_item"; itemId: string; requestId: string }
+  | { type: "confirm_items"; itemIds: string[]; requestId: string }
   | { type: "resolve_uncertainty"; index: number; explanation: string; requestId: string }
   | { type: "activate_plan"; requestId: string };
+
+export function itemConfirmationBlockers(item: DraftItem, document: DocumentRef | null): string[] {
+  const blockers = [...item.questions];
+  if (Object.values(item.fields).some(field => field.state === "ambiguous" || field.state === "illegible")) blockers.push("Há um campo ambíguo ou ilegível.");
+  if (!item.source.quote?.trim()) blockers.push("Informe a transcrição da fonte deste cuidado.");
+  if (document && (item.source.documentId !== document.id || !item.source.page || (document.pageCount !== null && item.source.page > document.pageCount))) blockers.push("Confira a página de origem deste cuidado.");
+  return blockers;
+}
+
+/** Conservative bulk eligibility; excluded items remain available for manual review. */
+export function batchConfirmationBlocker(item: DraftItem, document: DocumentRef | null): string | null {
+  const blocker = itemConfirmationBlockers(item, document)[0];
+  if (blocker) return blocker;
+  if (item.category !== "medication") return null;
+  const fields = new Map(Object.entries(item.fields).map(([key, field]) => [key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[ _-]/g, ""), field]));
+  const critical = [
+    ["nome", "name", "medicationname"], ["concentracao", "concentration", "strength"],
+    ["dose", "dosage"], ["via", "route"], ["frequencia", "frequency"],
+  ];
+  if (critical.some(aliases => !aliases.some(key => fields.get(key)?.state === "readable" && fields.get(key)?.value?.trim()))) return "Há um campo essencial do medicamento ausente. Revise este cuidado individualmente.";
+  return null;
+}

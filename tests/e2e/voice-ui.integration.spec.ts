@@ -109,6 +109,10 @@ async function installSimulatedTransport(page: Page, denyMicrophone = false) {
     }
     Object.defineProperty(window, "RTCPeerConnection", { value: SimulatedPeerConnection, configurable: true });
   }, { deny: denyMicrophone });
+  await page.route("**/api/voice/interpret", (route) => route.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({ type: "decision.event", event_id: "simulated-none", source_event_id: null, source_event_type: null, event: { type: "decision.completed", decision: { answers: [{ type: "choice", name: "action", choice: "none" }, { type: "choice", name: "task", choice: "none" }] } } }),
+  }));
   await page.route("**/api/voice/session", (route) => route.fulfill({
     status: 200,
     contentType: "application/json",
@@ -173,9 +177,10 @@ function nativeDecision(sourceId: string, triggerId: string, taskId: string, act
   };
 }
 
-async function confirmVoice(page: Page) {
-  const response = page.waitForResponse((candidate) => candidate.url().endsWith("/api/actions") && candidate.request().method() === "POST");
-  await page.getByRole("button", { name: "Confirmar registro", exact: true }).click();
+async function confirmVoice(page: Page, manualReady?: () => Promise<void>) {
+  const response = page.waitForResponse((candidate) => candidate.url().endsWith("/api/actions") && candidate.request().method() === "POST", { timeout: manualReady ? 90_000 : 12_000 });
+  if (manualReady) await manualReady();
+  else await page.getByRole("button", { name: "Confirmar registro", exact: true }).click();
   expect((await response).status()).toBe(200);
   await expect(page.locator(".voice-panel .sr-only[role=status]")).toHaveText("Registro salvo e compartilhado com seu cuidador.");
   await expect(page.locator('.voice-panel[data-voice-state="saved"]')).toBeVisible();
@@ -185,6 +190,28 @@ async function confirmVoice(page: Page) {
     return live.destination.stream.getAudioTracks().some((track) => track.enabled);
   })).toBe(false);
   await expect(page.getByRole("button", { name: "Confirmar registro", exact: true })).toHaveCount(0);
+}
+
+type InstructionSnapshot = { content: string; tasks: { cuidado: string; hora: string; status: string }[] };
+
+async function readInstructionSnapshots(page: Page): Promise<InstructionSnapshot[]> {
+  const sent = await page.evaluate(() => {
+    if (window.__voiceHarness) return window.__voiceHarness.sent;
+    return (window as unknown as { __liveAudio: { sent: string[] } }).__liveAudio.sent;
+  });
+  return sent.flatMap((raw) => {
+    const message = JSON.parse(raw) as { type: string; content?: string };
+    if (message.type !== "session.instructions.append" || !message.content) return [];
+    const rows = message.content.split("\n").filter((line) => line.startsWith("{")).map((line) => JSON.parse(line) as { cuidado?: string; hora?: string; status?: string });
+    const tasks = rows.filter((row): row is { cuidado: string; hora: string; status: string } => typeof row.cuidado === "string" && typeof row.hora === "string" && typeof row.status === "string");
+    return [{ content: message.content, tasks }];
+  });
+}
+
+async function expectInstructionStatus(page: Page, target: { title: string; time: string }, status: string, afterCount = 0) {
+  const matches = (snapshot: InstructionSnapshot) => snapshot.tasks.some((task) => task.cuidado === target.title && task.hora === target.time && task.status === status);
+  await expect.poll(async () => (await readInstructionSnapshots(page)).slice(afterCount).some(matches)).toBe(true);
+  return (await readInstructionSnapshots(page)).slice(afterCount).find(matches)!;
 }
 
 function observeActions(page: Page) {
@@ -368,6 +395,8 @@ test(`${display.id}-04-native-transcript-trigger-ordering-and-correlation`, asyn
   try {
     await openVoice(page, display);
     const before = await readState(caregiver);
+    const instructionsBefore = await expectInstructionStatus(page, walk, "pending");
+    const instructionCount = (await readInstructionSnapshots(page)).length;
     const oldSource = `transcript-old-${randomUUID()}`;
     const latestSource = `transcript-latest-${randomUUID()}`;
     await emitNative(page, transcriptEvent(oldSource, "Já concluí a caminhada leve.", 0));
@@ -385,8 +414,12 @@ test(`${display.id}-04-native-transcript-trigger-ordering-and-correlation`, asyn
     const validTrigger = `valid-trigger-${randomUUID()}`;
     const valid = nativeDecision(validSource, validTrigger, walk.id, "mark_done");
     expect("id" in valid.event.decision).toBe(false);
-    await emitNative(page, transcriptEvent(validSource, "Já concluí a caminhada leve.", 2));
+    await emitNative(page, transcriptEvent(validSource, "Pode concluir a caminhada leve.", 2));
     await emitNative(page, valid);
+    await expect(page.getByRole("button", { name: "Confirmar registro", exact: true })).toBeVisible();
+    const fillerSource = `transcript-filler-${randomUUID()}`;
+    await emitNative(page, transcriptEvent(fillerSource, "Aparece um cartão onde eu confirmo o registro?", 3));
+    await emitNative(page, nativeDecision(fillerSource, `filler-trigger-${randomUUID()}`, "none", "none"));
     await expect(page.getByRole("button", { name: "Confirmar registro", exact: true })).toBeVisible();
     await expect(page.locator(".voice-record")).toHaveAttribute("aria-label", new RegExp(walk.title));
     expect(actions).toHaveLength(0);
@@ -394,6 +427,7 @@ test(`${display.id}-04-native-transcript-trigger-ordering-and-correlation`, asyn
     await emitNative(page, valid);
     await expect(page.getByRole("button", { name: "Confirmar registro", exact: true })).toHaveCount(1);
     await confirmVoice(page);
+    const instructionsAfter = await expectInstructionStatus(page, walk, "done", instructionCount);
     expect(actions).toHaveLength(1);
     const final = await readState(caregiver);
     expect(final.tasks.find((task) => task.id === walk.id)?.status).toBe("done");
@@ -411,7 +445,7 @@ test(`${display.id}-04-native-transcript-trigger-ordering-and-correlation`, asyn
     await page.getByRole("button", { name: "Prefiro usar os botões", exact: true }).click();
     await page.reload();
     expect((await readState(caregiver)).tasks.find((task) => task.id === walk.id)?.status).toBe("done");
-    await receipt(testInfo, { result: "passed", caseId: initial.demoId, assertions: { nativeEnvelopeWithoutDecisionId: true, olderTranscriptDecisionIgnored: true, noneProducesNoProposal: true, latestTranscriptCorrelated: true, proposalNeedsConfirmation: true, exactAndTriggerReplayIgnored: true, savedCardShowsActualCare: true, confirmedRecordPersists: true }, nativeDecision: valid, actionRequests: actions });
+    await receipt(testInfo, { result: "passed", caseId: initial.demoId, assertions: { nativeEnvelopeWithoutDecisionId: true, olderTranscriptDecisionIgnored: true, noneProducesNoProposal: true, latestTranscriptCorrelated: true, explicitRequestSurvivesContinuousFiller: true, proposalNeedsConfirmation: true, exactAndTriggerReplayIgnored: true, savedCardShowsActualCare: true, confirmedRecordPersists: true, confirmationSendsUpdatedInstructions: true }, instructionsBefore, instructionsAfter, nativeDecision: valid, actionRequests: actions });
   } finally { await caregiver.close(); }
 });
 
@@ -420,21 +454,26 @@ test(`${display.id}-04-native-transcript-trigger-ordering-and-correlation`, asyn
 
 // Opt-in integration: synthetic audio source, native WebRTC and a real /api/voice/session.
 // No transport, SDP, transcript or Decisions event is mocked in this test.
-test("real-live-webrtc-question-then-confirmed-walk", async ({ page, browser }) => {
+test("real-live-webrtc-continuous-request-then-confirmed-walk", async ({ page, browser }) => {
   test.skip(process.env.CARE_E2E_LIVE !== "1", "Set CARE_E2E_LIVE=1 to use the authorized real Live API.");
-  test.setTimeout(120_000);
-  await page.setViewportSize({ width: 1280, height: 800 });
+  const manualAcceptance = process.env.CARE_E2E_MANUAL_ACCEPT === "1";
+  test.setTimeout(manualAcceptance ? 180_000 : 120_000);
+  await page.setViewportSize({ width: 390, height: 844 });
   await mkdir(reportDirectory, { recursive: true });
   const audioDirectory = process.env.CARE_E2E_AUDIO_DIR || "/private/tmp/cuidado-live-audio";
   const questionBytes = await readFile(resolve(audioDirectory, "question.wav"));
-  const statementBytes = await readFile(resolve(audioDirectory, "completed-walk.wav"));
+  const statementFile = process.env.CARE_E2E_LIVE_STATEMENT || "continuous-walk.wav";
+  const statementPhrase = statementFile === "completed-walk.wav" ? "Já concluí a caminhada leve." : "Pode concluir a caminhada leve. Aparece um cartão onde eu posso confirmar o registro, certo?";
+  const statementBytes = await readFile(resolve(audioDirectory, statementFile));
   await page.addInitScript(() => {
     type NativeEventLog = { receivedAt: number; type: string; delta?: string; event_id?: string; source_event_id?: string | null; source_event_type?: string | null; trigger_id?: string | null; event?: unknown; error?: unknown };
-    const state = { context: null as AudioContext | null, destination: null as MediaStreamAudioDestinationNode | null, events: [] as NativeEventLog[] };
+    const state = { context: null as AudioContext | null, destination: null as MediaStreamAudioDestinationNode | null, events: [] as NativeEventLog[], sent: [] as string[] };
     Object.defineProperty(window, "__liveAudio", { value: state });
     const createDataChannel = RTCPeerConnection.prototype.createDataChannel;
     RTCPeerConnection.prototype.createDataChannel = function (...args) {
       const channel = createDataChannel.apply(this, args);
+      const send = channel.send.bind(channel);
+      channel.send = ((data: string) => { state.sent.push(data); return send(data); }) as typeof channel.send;
       channel.addEventListener("message", (event) => {
         try {
           const message = JSON.parse(event.data);
@@ -460,6 +499,9 @@ test("real-live-webrtc-question-then-confirmed-walk", async ({ page, browser }) 
   const walkItem = initial.plan.items.find((item) => item.category === "activity")!;
   const walk = initial.tasks.find((task) => task.itemId === walkItem.id)!;
   const requests = observeActions(page);
+  const interpretationRequests: unknown[] = [];
+  page.on("request", (request) => { if (request.url().endsWith("/api/voice/interpret") && request.method() === "POST") interpretationRequests.push(request.postDataJSON()); });
+  const manualRunId = randomUUID();
   let passed = false;
   let questionResponse = "";
   try {
@@ -474,6 +516,8 @@ test("real-live-webrtc-question-then-confirmed-walk", async ({ page, browser }) 
     await page.getByRole("button", { name: "Falar com assistente", exact: true }).click();
     await page.getByRole("button", { name: "Começar a falar", exact: true }).click();
     await expect(page.getByText("Microfone ligado", { exact: true })).toBeVisible({ timeout: 30_000 });
+    await expectInstructionStatus(page, walk, "pending");
+    const instructionCount = (await readInstructionSnapshots(page)).length;
     const feed = async (bytes: Buffer) => page.evaluate(async (encoded) => {
       const state = (window as unknown as { __liveAudio: { context: AudioContext; destination: MediaStreamAudioDestinationNode } }).__liveAudio;
       const data = Uint8Array.from(atob(encoded), (char) => char.charCodeAt(0));
@@ -499,7 +543,11 @@ test("real-live-webrtc-question-then-confirmed-walk", async ({ page, browser }) 
     await expect(page.locator(".voice-record")).toContainText(walk.title);
     expect((await readState(caregiver)).tasks.find((task) => task.id === walk.id)?.status).toBe("pending");
     await page.screenshot({ path: resolve(reportDirectory, "real-live-confirming.png"), scale: "css" });
-    await confirmVoice(page);
+    await confirmVoice(page, manualAcceptance ? async () => {
+      await writeFile(resolve(reportDirectory, "manual-ready.json"), JSON.stringify({ status: "ready", runId: manualRunId, createdAt: new Date().toISOString(), caseId: initial.demoId, taskId: walk.id, taskTitle: walk.title, taskTime: walk.time, browser: "Google Chrome for Testing", appPID: null, runnerPID: process.pid, viewport: { width: 390, height: 844 }, url: page.url(), action: "Root must click Confirmar registro through native Computer Use. The test does not click in manual mode." }, null, 2) + "\n");
+      console.log("MANUAL_CONFIRMATION_READY", manualRunId);
+    } : undefined);
+    await expectInstructionStatus(page, walk, "done", instructionCount);
     const final = await readState(caregiver);
     expect(final.tasks.find((task) => task.id === walk.id)?.status).toBe("done");
     expect(requests).toHaveLength(1);
@@ -507,10 +555,12 @@ test("real-live-webrtc-question-then-confirmed-walk", async ({ page, browser }) 
     await expect(page.getByRole("button", { name: "Registrar outra coisa", exact: true })).toBeEnabled();
     await page.screenshot({ path: resolve(reportDirectory, "real-live-saved.png"), scale: "css", animations: "disabled" });
     passed = true;
+    if (manualAcceptance) await writeFile(resolve(reportDirectory, "manual-ready.json"), JSON.stringify({ status: "confirmed", runId: manualRunId, confirmedAt: new Date().toISOString(), caseId: initial.demoId, taskId: walk.id, persistedStatus: final.tasks.find((task) => task.id === walk.id)?.status, actionCount: requests.length }, null, 2) + "\n");
   } finally {
     const events = await page.evaluate(() => (window as unknown as { __liveAudio?: { events: unknown[] } }).__liveAudio?.events ?? []).catch(() => []);
+    const instructions = await readInstructionSnapshots(page).catch(() => []);
     await mkdir(reportDirectory, { recursive: true });
-    await writeFile(resolve(reportDirectory, "real-live-webrtc.json"), JSON.stringify({ result: passed ? "passed" : "failed", generatedAt: new Date().toISOString(), caseId: initial.demoId, taskId: walk.id, method: "Native RTCPeerConnection, real /api/voice/session and provider events. Only getUserMedia is replaced by synthetic pt-BR speech through WebAudio MediaStreamDestination; no speaker output.", syntheticAudio: [{ phrase: "O que falta eu fazer hoje?", sha256: createHash("sha256").update(questionBytes).digest("hex") }, { phrase: "Já concluí a caminhada leve.", sha256: createHash("sha256").update(statementBytes).digest("hex") }], questionResponse, setup: "All non-walk tasks explicitly recorded done before connecting; only walk remained pending.", actionRequests: requests, events, limitation: "Synthetic TTS audio is not a physical microphone or human speech-quality evaluation." }, null, 2) + "\n");
+    await writeFile(resolve(reportDirectory, "real-live-webrtc.json"), JSON.stringify({ result: passed ? "passed" : "failed", generatedAt: new Date().toISOString(), caseId: initial.demoId, taskId: walk.id, method: "Native RTCPeerConnection, real /api/voice/session and provider events. Only getUserMedia is replaced by synthetic pt-BR speech through WebAudio MediaStreamDestination; no speaker output.", syntheticAudio: [{ phrase: "O que falta eu fazer hoje?", sha256: createHash("sha256").update(questionBytes).digest("hex") }, { phrase: statementPhrase, sha256: createHash("sha256").update(statementBytes).digest("hex") }], questionResponse, setup: "All non-walk tasks explicitly recorded done before connecting; only walk remained pending.", actionRequests: requests, interpretationRequests, instructions, manualAcceptance, manualRunId, viewport: { width: 390, height: 844 }, events, limitation: "Synthetic TTS audio is not a physical microphone or human speech-quality evaluation." }, null, 2) + "\n");
     await caregiver.close();
   }
 });

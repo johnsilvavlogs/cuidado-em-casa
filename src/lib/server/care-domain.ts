@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { CareAction, CareState, DraftItem, ExtractionResult, Role, TaskOccurrence } from "../contracts";
+import { batchConfirmationBlocker, itemConfirmationBlockers } from "../contracts";
 
 export class CareError extends Error {
   constructor(message: string, public readonly status = 400) {
@@ -60,6 +61,7 @@ const actionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("update_item"), itemId: id, title: text(200), instruction: text(8_000), fields: fieldsSchema, questions: questionsSchema, schedule: scheduleSchema.optional(), requestId }).strict(),
   z.object({ type: z.literal("add_item"), item: itemSchema, requestId }).strict(),
   z.object({ type: z.literal("confirm_item"), itemId: id, requestId }).strict(),
+  z.object({ type: z.literal("confirm_items"), itemIds: z.array(id).min(1).max(150).refine(ids => new Set(ids).size === ids.length), requestId }).strict(),
   z.object({ type: z.literal("confirm_source_pages"), requestId }).strict(),
   z.object({ type: z.literal("resolve_uncertainty"), index: z.number().int().min(0), explanation: z.string().trim().min(10).max(2_000), requestId }).strict(),
   z.object({ type: z.literal("activate_plan"), requestId }).strict(),
@@ -99,11 +101,7 @@ function requireActive(state: StoredState): void {
 }
 
 export function itemBlockers(item: DraftItem, state: StoredState): string[] {
-  const blockers = [...item.questions];
-  if (Object.values(item.fields).some((field) => field.state === "ambiguous" || field.state === "illegible")) blockers.push("Há um campo ambíguo ou ilegível.");
-  if (!item.source.quote?.trim()) blockers.push("Informe a transcrição da fonte deste cuidado.");
-  if (state.document && (item.source.documentId !== state.document.id || !item.source.page || (state.document.pageCount !== null && item.source.page > state.document.pageCount))) blockers.push("Confira a página de origem deste cuidado.");
-  return blockers;
+  return itemConfirmationBlockers(item, state.document);
 }
 
 export function appendEvent(state: StoredState, role: Role, now: string, text: string): void {
@@ -219,6 +217,22 @@ export function applyAction(state: StoredState, role: Role, action: CareAction, 
       if (item.confirmed) return;
       item.confirmed = true;
       appendEvent(state, role, at, `Cuidador conferiu “${item.title}” com a fonte.`);
+      return;
+    }
+    case "confirm_items": {
+      if (!state.plan.sourceReviewed) throw new CareError("Confira todas as páginas da fonte antes de confirmar em lote.", 409);
+      if (state.plan.unresolved.length) throw new CareError("Esclareça as pendências gerais antes de confirmar em lote.", 409);
+      const items = action.itemIds.map(id => {
+        const item = state.plan.items.find(entry => entry.id === id);
+        if (!item) throw new CareError("Um cuidado do lote não foi encontrado. Nenhum item foi confirmado.", 404);
+        const blocker = batchConfirmationBlocker(item, state.document);
+        if (blocker) throw new CareError(`Nenhum item foi confirmado. “${item.title}”: ${blocker}`, 409);
+        return item;
+      });
+      const pending = items.filter(item => !item.confirmed);
+      if (!pending.length) return;
+      for (const item of pending) item.confirmed = true;
+      appendEvent(state, role, at, `Cuidador conferiu ${pending.length} ${pending.length === 1 ? "cuidado" : "cuidados"} em lote com a fonte. Os demais itens mantêm sua própria conferência.`);
       return;
     }
     case "confirm_source_pages":
