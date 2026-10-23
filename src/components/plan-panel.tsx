@@ -2,7 +2,8 @@
 
 import { useState, type FormEvent } from "react";
 import { ArrowRightIcon, CheckCircleIcon, CheckIcon, CircleIcon, FileArrowUpIcon, FileTextIcon, PencilSimpleIcon, PlusIcon, ShieldCheckIcon, WarningCircleIcon } from "@phosphor-icons/react";
-import type { CareState, DraftItem, CareField } from "@/lib/contracts";
+import type { CareState, DraftItem, CareField, SchedulePeriod } from "@/lib/contracts";
+import { periodLabel, validPeriod } from "@/lib/schedule-period";
 import DocumentViewer from "./document-viewer";
 import { Brand, Busy, careText, categoryLabels, EmptyState, fieldLabels, Modal, Portrait, readingLabels, type RunAction } from "./care-ui";
 
@@ -22,7 +23,8 @@ export default function PlanPanel({ state, run, busy, onImport }: Props) {
   const isActive = state.plan.status === "active";
   const confirmed = state.plan.items.filter((item) => item.confirmed).length;
   const unresolvedCount = state.plan.unresolved.length + state.plan.items.reduce((n, item) => n + item.questions.length + Object.values(item.fields).filter((f) => f.state === "ambiguous" || f.state === "illegible").length, 0);
-  const canActivate = state.plan.items.length > 0 && confirmed === state.plan.items.length && unresolvedCount === 0 && state.plan.sourceReviewed;
+  const periodsPending = state.plan.items.filter((item) => item.category === "medication" && !validPeriod(item.schedule?.period));
+  const canActivate = state.plan.items.length > 0 && confirmed === state.plan.items.length && unresolvedCount === 0 && periodsPending.length === 0 && state.plan.sourceReviewed;
 
   async function importDocument(event: FormEvent) {
     event.preventDefault();
@@ -57,10 +59,11 @@ export default function PlanPanel({ state, run, busy, onImport }: Props) {
       <button className="text-button" onClick={() => setAdding(true)} disabled={busy || importing}><PlusIcon size={18} />Cadastrar um cuidado manualmente</button>
     </section>}
     {state.document && <button className="card source-link" onClick={() => setOriginal(true)}><span className="icon-disc"><FileTextIcon size={25} /></span><span><strong>{state.document.name}</strong><small>Documento original{state.document.pageCount ? ` · ${state.document.pageCount} página(s)` : ""}</small></span><ArrowRightIcon size={22} /></button>}
+    {isActive && periodsPending.length > 0 && <div className="notice" role="status"><WarningCircleIcon size={23} /><div><strong>Período do medicamento a conferir</strong><p>As tarefas de {periodsPending.map((item) => item.title).join(", ")} estão suspensas até o cuidador conferir as datas no Plano. A orientação e os registros anteriores foram preservados.</p></div></div>}
     {state.plan.warnings.length > 0 && <div className="notice"><WarningCircleIcon size={23} /><div><strong>Atenção ao revisar</strong>{state.plan.warnings.map((warning, i) => <p key={i}>{warning}</p>)}</div></div>}
     {state.plan.unresolved.length > 0 && <section className="card attention-card"><h3><WarningCircleIcon size={23} />Dúvidas a esclarecer</h3><p>Confirme com a fonte ou com o profissional responsável. Não complete por suposição.</p>{state.plan.unresolved.map((question, i) => <div className="uncertainty-row" key={`${i}-${question}`}><span>{question}</span>{isCaregiver && !isActive && <button className="button secondary compact" onClick={() => setUncertainty(i)}>Esclarecer</button>}</div>)}</section>}
     {state.plan.items.length > 0 ? <section className="stack-sm"><div className="section-heading small"><h3>{isActive ? `${state.plan.items.length} cuidados no plano` : "Confira cada cuidado"}</h3>{!isActive && <span className="muted">{confirmed} de {state.plan.items.length} confirmados</span>}</div>
-      {state.plan.items.map((item) => <button className={`card plan-item ${item.confirmed ? "confirmed" : ""}`} key={item.id} onClick={() => setReview(item)}><div className="plan-item-top"><span className="eyebrow">{categoryLabels[item.category]}</span><span className={`badge ${item.confirmed ? "badge-green" : "badge-amber"}`}>{item.confirmed ? <CheckCircleIcon size={15} /> : <CircleIcon size={15} />}{item.confirmed ? "Conferido" : "A conferir"}</span></div><h3>{careText(item.title)}</h3><p>{careText(item.instruction)}</p>{item.questions.length > 0 && <p className="warning-text"><WarningCircleIcon size={17} />{item.questions.length} dúvida(s) neste cuidado</p>}<span className="item-action">{isActive ? "Ver orientação e fonte" : "Revisar com a fonte"}<ArrowRightIcon size={18} /></span></button>)}
+      {state.plan.items.map((item) => <button className={`card plan-item ${item.confirmed ? "confirmed" : ""}`} key={item.id} onClick={() => setReview(item)}><div className="plan-item-top"><span className="eyebrow">{categoryLabels[item.category]}</span><span className={`badge ${item.confirmed ? "badge-green" : "badge-amber"}`}>{item.confirmed ? <CheckCircleIcon size={15} /> : <CircleIcon size={15} />}{item.confirmed ? "Conferido" : "A conferir"}</span></div><h3>{careText(item.title)}</h3><p>{careText(item.instruction)}</p>{item.schedule?.period && validPeriod(item.schedule.period) && <p className="small-note">Período: {periodLabel(item.schedule.period)}</p>}{item.category === "medication" && !validPeriod(item.schedule?.period) && <p className="warning-text">Período a conferir</p>}{item.questions.length > 0 && <p className="warning-text"><WarningCircleIcon size={17} />{item.questions.length} dúvida(s) neste cuidado</p>}<span className="item-action">{isActive ? "Ver orientação e fonte" : "Revisar com a fonte"}<ArrowRightIcon size={18} /></span></button>)}
       {!isActive && isCaregiver && <button className="button secondary" onClick={() => setAdding(true)}><PlusIcon size={20} />Adicionar orientação que faltou</button>}
     </section> : !isCaregiver && <EmptyState icon={<FileTextIcon size={30} />} title="Ainda não há um plano ativo">Você e seu cuidador verão as mesmas orientações aprovadas.</EmptyState>}
     {!isActive && isCaregiver && state.plan.items.length > 0 && <section className="card activation-card"><div className="card-heading"><span className="icon-disc"><ShieldCheckIcon size={26} /></span><div><h3>Pronto para compartilhar?</h3><p className="muted">O plano fica fixo depois da ativação.</p></div></div>
@@ -84,15 +87,26 @@ function ReviewDialog({ item, state, busy, run, onClose }: { item: DraftItem; st
   const [times, setTimes] = useState(item.schedule?.times.join(", ") ?? "");
   const [priority, setPriority] = useState<"normal" | "important">(item.schedule?.priority ?? "normal");
   const [tolerance, setTolerance] = useState(item.schedule?.toleranceMinutes ?? 30);
+  const [periodMode, setPeriodMode] = useState<"unset" | "finite" | "ongoing">(item.schedule?.period ? item.schedule.period.endDate === null ? "ongoing" : "finite" : "unset");
+  const [startDate, setStartDate] = useState(item.schedule?.period?.startDate ?? "");
+  const [endDate, setEndDate] = useState(item.schedule?.period?.endDate ?? "");
   const [localError, setLocalError] = useState("");
   const editable = state.role === "caregiver" && state.plan.status === "draft";
   const freshItem = state.plan.items.find((candidate) => candidate.id === item.id) ?? item;
-  const dirty = title !== freshItem.title || instruction !== freshItem.instruction || JSON.stringify(fields) !== JSON.stringify(freshItem.fields) || questions !== freshItem.questions.join("\n") || times !== (freshItem.schedule?.times.join(", ") ?? "") || priority !== (freshItem.schedule?.priority ?? "normal") || tolerance !== (freshItem.schedule?.toleranceMinutes ?? 30);
+  const legacyPeriodReview = state.role === "caregiver" && state.plan.status === "active" && freshItem.category === "medication" && !validPeriod(freshItem.schedule?.period);
+  const period: SchedulePeriod | undefined = periodMode === "unset" ? undefined : { startDate, endDate: periodMode === "finite" ? endDate : null };
+  const periodDirty = JSON.stringify(period) !== JSON.stringify(freshItem.schedule?.period);
+  const dirty = periodDirty || title !== freshItem.title || instruction !== freshItem.instruction || JSON.stringify(fields) !== JSON.stringify(freshItem.fields) || questions !== freshItem.questions.join("\n") || times !== (freshItem.schedule?.times.join(", ") ?? "") || priority !== (freshItem.schedule?.priority ?? "normal") || tolerance !== (freshItem.schedule?.toleranceMinutes ?? 30);
   async function save(event: FormEvent) {
     event.preventDefault(); setLocalError("");
+    if ((item.category === "medication" || periodMode !== "unset") && !validPeriod(period)) return setLocalError("Confira o início e o término. O término não pode ser anterior ao início.");
+    if (legacyPeriodReview && period) {
+      if (await run({ type: "confirm_item_period", itemId: item.id, period }, "Período conferido. As tarefas seguem as datas confirmadas.")) onClose();
+      return;
+    }
     const parsedTimes = times.split(",").map((time) => time.trim()).filter(Boolean);
     if (parsedTimes.some((time) => !/^([01]\d|2[0-3]):[0-5]\d$/.test(time))) return setLocalError("Use horários no formato 08:00, 14:00.");
-    await run({ type: "update_item", itemId: item.id, title, instruction, fields, questions: questions.split("\n").map((q) => q.trim()).filter(Boolean), schedule: { times: parsedTimes, priority, toleranceMinutes: tolerance } }, "Correção salva. Confira e confirme este cuidado.");
+    await run({ type: "update_item", itemId: item.id, title, instruction, fields, questions: questions.split("\n").map((q) => q.trim()).filter(Boolean), schedule: { times: parsedTimes, priority, toleranceMinutes: tolerance, ...(period ? { period } : {}) } }, "Correção salva. Confira e confirme este cuidado.");
   }
   const fieldEntries = Object.entries(fields);
   const primaryField = fieldEntries.find(([, field]) => field.state === "ambiguous" || field.state === "illegible") ?? fieldEntries[0];
@@ -101,9 +115,17 @@ function ReviewDialog({ item, state, busy, run, onClose }: { item: DraftItem; st
       <div className="source-quote" data-parity-anchor="transcript"><span className="eyebrow">Trecho transcrito da fonte</span><blockquote>{item.source.quote || "Confira a orientação completa no original."}</blockquote></div>
       <div data-parity-anchor="field-editor">{primaryField ? renderField(primaryField) : <label>Orientação completa<textarea value={instruction} onChange={(event) => setInstruction(event.target.value)} rows={4} required readOnly={!editable} /></label>}</div>
       {(editable || questions) && <label data-parity-anchor="clarification-context">Dúvidas pendentes <span className="label-hint">Remova somente após esclarecer com a fonte.</span><textarea value={questions} readOnly={!editable} onChange={(event) => setQuestions(event.target.value)} rows={2} placeholder="Nenhuma dúvida pendente" /></label>}
+      <fieldset className="stack-sm"><legend>Período da rotina</legend>
+        <p className="small-note">Confira a duração na fonte e informe as datas acordadas. O aplicativo não calcula o início nem transforma o texto em tratamento. O último dia está incluído; as datas seguem o horário de Brasília.</p>
+        {legacyPeriodReview && <p className="warning-text">Este plano antigo não tem período conferido. Complete apenas as datas para retomar as tarefas; a orientação permanece igual.</p>}
+        <label>Validade<select value={periodMode} disabled={!editable && !legacyPeriodReview} onChange={(event) => setPeriodMode(event.target.value as typeof periodMode)}><option value="unset">Período não informado</option><option value="finite">Com data de término</option><option value="ongoing">A orientação não define término</option></select></label>
+        {periodMode !== "unset" && <div className="form-columns"><label>Primeiro dia<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} required readOnly={!editable && !legacyPeriodReview} /></label>{periodMode === "finite" && <label>Último dia (incluído)<input type="date" value={endDate} min={startDate || undefined} onChange={(event) => setEndDate(event.target.value)} required readOnly={!editable && !legacyPeriodReview} /></label>}</div>}
+        {periodMode === "unset" && item.category === "medication" && <p className="warning-text">Informe o período antes de confirmar este medicamento.</p>}
+      </fieldset>
       <details className="review-details"><summary>Conferir todos os campos e horários</summary><div className="stack"><label>Nome do cuidado<input value={title} onChange={(event) => setTitle(event.target.value)} required readOnly={!editable} /></label><label>Orientação completa<textarea value={instruction} onChange={(event) => setInstruction(event.target.value)} rows={3} required readOnly={!editable} /></label>{fieldEntries.filter(([key]) => key !== primaryField?.[0]).map(renderField)}<fieldset className="stack-sm"><legend>Organização da rotina</legend><p className="small-note">Preserve a frequência prescrita. Os horários abaixo organizam o acompanhamento.</p><label>Horários da rotina<input value={times} onChange={(event) => setTimes(event.target.value)} placeholder="08:00, 14:00" readOnly={!editable} /></label><div className="form-columns"><label>Prioridade<select value={priority} onChange={(event) => setPriority(event.target.value as "normal" | "important")} disabled={!editable}><option value="normal">Normal</option><option value="important">Importante</option></select></label><label>Tolerância em minutos<input type="number" min="0" max="1440" value={tolerance} onChange={(event) => setTolerance(Number(event.target.value))} readOnly={!editable} /></label></div></fieldset></div></details>
       {localError && <p className="error-message" role="alert">{localError}</p>}
-      {editable && <div className="stack-sm"><button type="submit" className="button secondary" data-parity-anchor="save-action" disabled={!dirty || busy}><PencilSimpleIcon size={20} />Salvar correções</button><button type="button" className="button primary" disabled={dirty || busy || freshItem.confirmed} onClick={() => void run({ type: "confirm_item", itemId: item.id }, "Cuidado conferido com a fonte.")}>{freshItem.confirmed ? <><CheckCircleIcon size={20} />Cuidado confirmado</> : <><CheckIcon size={20} />Conferi e confirmo este cuidado</>}</button><p className="small-note" data-parity-anchor="support-note">{dirty ? "Salve suas alterações antes de confirmar." : "Confira todos os campos. Se houver dúvida, mantenha o cuidado pendente."}</p></div>}
+      {legacyPeriodReview && <button type="submit" className="button primary" disabled={busy || !validPeriod(period)}><CheckIcon size={20} />Conferi o período com a fonte</button>}
+      {editable && <div className="stack-sm"><button type="submit" className="button secondary" data-parity-anchor="save-action" disabled={!dirty || busy}><PencilSimpleIcon size={20} />Salvar correções</button><button type="button" className="button primary" disabled={dirty || busy || freshItem.confirmed || (item.category === "medication" && !validPeriod(freshItem.schedule?.period))} onClick={() => void run({ type: "confirm_item", itemId: item.id }, "Cuidado conferido com a fonte.")}>{freshItem.confirmed ? <><CheckCircleIcon size={20} />Cuidado confirmado</> : <><CheckIcon size={20} />Conferi e confirmo este cuidado</>}</button><p className="small-note" data-parity-anchor="support-note">{dirty ? "Salve suas alterações antes de confirmar." : "Confira todos os campos. Se houver dúvida, mantenha o cuidado pendente."}</p></div>}
     </form></div></Modal>;
 
 }
