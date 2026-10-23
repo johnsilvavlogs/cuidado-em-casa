@@ -19,6 +19,7 @@ export type HelpRequest = { id: string; taskId: string | null; message: string; 
 export type CheckIn = { id: string; sleepMinutes: number | null; sleepQuality: "low" | "okay" | "high" | null; food: "yes" | "partial" | "no" | null; mood: "good" | "okay" | "bad" | null; referenceDate?: string; createdAt: string; updatedAt?: string; author: Role };
 export type TimelineEvent = { id: string; text: string; createdAt: string; author: Role };
 export type CareState = {
+  account?: { id: string; name: string; email: string };
   demoId: string;
   role: Role;
   patient: { name: string; caregiverName: string };

@@ -42,3 +42,9 @@ As decisões de produto em `docs/product/` prevalecem sobre telas antigas. Não 
 - [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)
 - [Entrada de imagens](https://developers.openai.com/api/docs/guides/images-vision)
 - [GPT-Live e Decisions](https://developers.openai.com/api/docs/guides/decisions-voice)
+
+## Contas no MVP de avaliação
+
+A entrada oferece o caso pronto de demonstração e uma conta nova com um plano vazio. A conta nova tem o papel fixo de cuidador; autenticação, sessão e vínculo com seu caso são validados no servidor. As sessões de demonstração continuam separadas das contas, e conhecer um identificador de caso não permite abrir um caso de conta pelo endpoint de demonstração.
+
+Os dados são locais a esta instalação. Cadastro, login, saída e retorno à sessão fazem parte desse recorte; confirmação de e-mail, recuperação de senha e convites entre contas ficam para uma evolução. A publicação ainda exige persistência adequada ao ambiente de hospedagem.

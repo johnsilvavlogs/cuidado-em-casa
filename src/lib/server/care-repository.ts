@@ -6,12 +6,15 @@ import { createClient, type Client, type Transaction } from "@libsql/client";
 import type { CareState, DocumentRef, ExtractionResult, Role } from "../contracts";
 import { appendEvent, applyAction, CareError, dateInBrazil, demoSchema, ensureTodayTasks, parseAction, parseExtraction, requireCaregiver, requireDraft, type StoredState, type StoredTask } from "./care-domain";
 import { createDemoState, demoSource } from "./care-demo";
+import { hashPassword, parseLogin, parseRegistration, verifyPassword } from "./care-auth";
 
 export { CareError } from "./care-domain";
 
 const SESSION_LIFETIME_MS = 24 * 60 * 60 * 1_000;
 const MAX_FILE_BYTES = 15 * 1024 * 1024;
-type Session = { caseId: string; role: Role; state: StoredState };
+const LOGIN_WINDOW_MS = 15 * 60 * 1_000;
+const MAX_LOGIN_ATTEMPTS = 10;
+type Session = { caseId: string; role: Role; state: StoredState; account?: CareState["account"] };
 type DocumentInput = { name: string; mimeType: string; bytes: Uint8Array };
 type SqlExecutor = Pick<Client, "execute"> | Pick<Transaction, "execute">;
 
@@ -25,11 +28,11 @@ function stableJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function publicState(state: StoredState, role: Role, now: Date): CareState {
-  return structuredClone({ ...state, role, tasks: state.tasks.filter((task) => (task as StoredTask).referenceDate === dateInBrazil(now)).sort((a, b) => a.time.localeCompare(b.time)) });
+function publicState(state: StoredState, role: Role, now: Date, account?: CareState["account"]): CareState {
+  return structuredClone({ ...state, ...(account ? { account } : {}), role, tasks: state.tasks.filter((task) => (task as StoredTask).referenceDate === dateInBrazil(now)).sort((a, b) => a.time.localeCompare(b.time)) });
 }
 
-/** Local-only persistence. A demo ID joins a synthetic case, never a real account. */
+/** Local persistence for isolated accounts and synthetic, shareable demo cases. */
 export class CareRepository {
   private clientPromise: Promise<Client> | undefined;
   private queue: Promise<void> = Promise.resolve();
@@ -51,9 +54,13 @@ export class CareRepository {
         PRAGMA foreign_keys = ON;
         CREATE TABLE IF NOT EXISTS care_cases (id TEXT PRIMARY KEY, state_json TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS demo_sessions (token_hash TEXT PRIMARY KEY, case_id TEXT NOT NULL REFERENCES care_cases(id), role TEXT NOT NULL CHECK(role IN ('patient', 'caregiver')), expires_at TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT NOT NULL, password_salt TEXT NOT NULL, password_hash TEXT NOT NULL, case_id TEXT NOT NULL UNIQUE REFERENCES care_cases(id), created_at TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS account_sessions (token_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id), expires_at TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS login_attempts (email_hash TEXT PRIMARY KEY, attempts INTEGER NOT NULL, window_started_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS documents (id TEXT PRIMARY KEY, case_id TEXT NOT NULL REFERENCES care_cases(id), name TEXT NOT NULL, mime_type TEXT NOT NULL, file_name TEXT NOT NULL, sha256 TEXT NOT NULL, byte_length INTEGER NOT NULL, page_count INTEGER);
         CREATE TABLE IF NOT EXISTS operations (case_id TEXT NOT NULL REFERENCES care_cases(id), request_id TEXT NOT NULL, role TEXT NOT NULL, fingerprint TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(case_id, request_id));
         CREATE TABLE IF NOT EXISTS audit_events (id TEXT PRIMARY KEY, case_id TEXT NOT NULL REFERENCES care_cases(id), role TEXT NOT NULL, event_type TEXT NOT NULL, request_id TEXT, created_at TEXT NOT NULL, before_json TEXT, after_json TEXT NOT NULL);
+        CREATE INDEX IF NOT EXISTS account_session_account ON account_sessions(account_id);
         CREATE INDEX IF NOT EXISTS session_case ON demo_sessions(case_id);
         CREATE INDEX IF NOT EXISTS document_case ON documents(case_id);
         CREATE INDEX IF NOT EXISTS audit_case ON audit_events(case_id, created_at);
@@ -83,7 +90,12 @@ export class CareRepository {
 
   private async session(executor: SqlExecutor, token: string | undefined): Promise<Session> {
     if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) throw new CareError("Entre para continuar.", 401);
-    const result = await executor.execute({ sql: "SELECT s.case_id, s.role, c.state_json FROM demo_sessions s JOIN care_cases c ON c.id = s.case_id WHERE s.token_hash = ? AND s.expires_at > ?", args: [hash(token), this.clock().toISOString()] });
+    const tokenHash = hash(token);
+    const now = this.clock().toISOString();
+    const accountResult = await executor.execute({ sql: "SELECT a.id, a.email, a.name, a.case_id, c.state_json FROM account_sessions s JOIN accounts a ON a.id = s.account_id JOIN care_cases c ON c.id = a.case_id WHERE s.token_hash = ? AND s.expires_at > ?", args: [tokenHash, now] });
+    const account = accountResult.rows[0];
+    if (account) return { caseId: String(account.case_id), role: "caregiver", state: JSON.parse(String(account.state_json)) as StoredState, account: { id: String(account.id), name: String(account.name), email: String(account.email) } };
+    const result = await executor.execute({ sql: "SELECT s.case_id, s.role, c.state_json FROM demo_sessions s JOIN care_cases c ON c.id = s.case_id LEFT JOIN accounts a ON a.case_id = c.id WHERE s.token_hash = ? AND s.expires_at > ? AND a.id IS NULL", args: [tokenHash, now] });
     const row = result.rows[0];
     if (!row) throw new CareError("Sessão expirada. Entre novamente.", 401);
     return { caseId: String(row.case_id), role: row.role as Role, state: JSON.parse(String(row.state_json)) as StoredState };
@@ -106,7 +118,7 @@ export class CareRepository {
       const caseId = demoId ?? randomUUID();
       let state: StoredState;
       if (demoId) {
-        const existing = await transaction.execute({ sql: "SELECT state_json FROM care_cases WHERE id = ?", args: [caseId] });
+        const existing = await transaction.execute({ sql: "SELECT c.state_json FROM care_cases c LEFT JOIN accounts a ON a.case_id = c.id WHERE c.id = ? AND a.id IS NULL", args: [caseId] });
         if (!existing.rows[0]) throw new CareError("Acompanhamento não encontrado.", 404);
         state = JSON.parse(String(existing.rows[0].state_json)) as StoredState;
       } else {
@@ -124,29 +136,89 @@ export class CareRepository {
     });
   }
 
+  private async createAccountSession(executor: SqlExecutor, accountId: string): Promise<string> {
+    const token = randomBytes(32).toString("base64url");
+    await executor.execute({ sql: "INSERT INTO account_sessions (token_hash, account_id, expires_at) VALUES (?, ?, ?)", args: [hash(token), accountId, new Date(this.clock().getTime() + SESSION_LIFETIME_MS).toISOString()] });
+    return token;
+  }
+
+  async register(input: unknown): Promise<{ token: string; state: CareState }> {
+    const { name, email, password } = parseRegistration(input);
+    const passwordRecord = await hashPassword(password);
+    return this.transaction(async (transaction) => {
+      const existing = await transaction.execute({ sql: "SELECT id FROM accounts WHERE email = ?", args: [email] });
+      if (existing.rows[0]) throw new CareError("Já existe uma conta com este e-mail. Entre com sua senha.", 409);
+      const now = this.clock();
+      const account = { id: randomUUID(), name, email };
+      const state = createDemoState(randomUUID(), "setup", null, now);
+      state.patient = { name: "Pessoa cuidada", caregiverName: name };
+      state.timeline = [];
+      await transaction.execute({ sql: "INSERT INTO care_cases (id, state_json) VALUES (?, ?)", args: [state.demoId, JSON.stringify(state)] });
+      await transaction.execute({ sql: "INSERT INTO accounts (id, email, name, password_salt, password_hash, case_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)", args: [account.id, email, name, passwordRecord.salt, passwordRecord.hash, state.demoId, now.toISOString()] });
+      await this.audit(transaction, state.demoId, "caregiver", "account_created", null, state);
+      const token = await this.createAccountSession(transaction, account.id);
+      return { token, state: publicState(state, "caregiver", now, account) };
+    });
+  }
+
+  async login(input: unknown): Promise<{ token: string; state: CareState }> {
+    const { email, password } = parseLogin(input);
+    const emailHash = hash(email);
+    const allowed = await this.transaction(async (transaction) => {
+      const now = this.clock();
+      const result = await transaction.execute({ sql: "SELECT attempts, window_started_at FROM login_attempts WHERE email_hash = ?", args: [emailHash] });
+      const previous = result.rows[0];
+      const active = previous && now.getTime() - Date.parse(String(previous.window_started_at)) < LOGIN_WINDOW_MS;
+      if (active && Number(previous.attempts) >= MAX_LOGIN_ATTEMPTS) return false;
+      await transaction.execute({ sql: "INSERT INTO login_attempts (email_hash, attempts, window_started_at) VALUES (?, ?, ?) ON CONFLICT(email_hash) DO UPDATE SET attempts = excluded.attempts, window_started_at = excluded.window_started_at", args: [emailHash, active ? Number(previous.attempts) + 1 : 1, active ? String(previous.window_started_at) : now.toISOString()] });
+      return true;
+    });
+    if (!allowed) throw new CareError("Muitas tentativas. Aguarde 15 minutos antes de tentar novamente.", 429);
+    const result = await (await this.database()).execute({ sql: "SELECT id, password_salt, password_hash FROM accounts WHERE email = ?", args: [email] });
+    const account = result.rows[0];
+    const valid = await verifyPassword(password, account ? String(account.password_salt) : undefined, account ? String(account.password_hash) : undefined);
+    if (!valid || !account) throw new CareError("E-mail ou senha inválidos.", 401);
+    return this.transaction(async (transaction) => {
+      await transaction.execute({ sql: "DELETE FROM login_attempts WHERE email_hash = ?", args: [emailHash] });
+      const token = await this.createAccountSession(transaction, String(account.id));
+      const session = await this.session(transaction, token);
+      const now = this.clock();
+      if (ensureTodayTasks(session.state, now)) await this.save(transaction, session.state);
+      return { token, state: publicState(session.state, session.role, now, session.account) };
+    });
+  }
+
+  async logout(token: string | undefined): Promise<void> {
+    if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return;
+    await this.transaction(async (transaction) => {
+      await transaction.execute({ sql: "DELETE FROM account_sessions WHERE token_hash = ?", args: [hash(token)] });
+      await transaction.execute({ sql: "DELETE FROM demo_sessions WHERE token_hash = ?", args: [hash(token)] });
+    });
+  }
+
   async getState(token: string | undefined): Promise<CareState> {
     return this.transaction(async (transaction) => {
-      const { state, role } = await this.session(transaction, token);
+      const { state, role, account } = await this.session(transaction, token);
       const now = this.clock();
       if (ensureTodayTasks(state, now)) {
         state.updatedAt = now.toISOString();
         state.revision += 1;
         await this.save(transaction, state);
       }
-      return publicState(state, role, now);
+      return publicState(state, role, now, account);
     });
   }
 
   async mutate(token: string | undefined, input: unknown): Promise<CareState> {
     const action = parseAction(input);
     return this.transaction(async (transaction) => {
-      const { caseId, state, role } = await this.session(transaction, token);
+      const { caseId, state, role, account } = await this.session(transaction, token);
       const fingerprint = hash(stableJson(action));
       const existing = await transaction.execute({ sql: "SELECT role, fingerprint FROM operations WHERE case_id = ? AND request_id = ?", args: [caseId, action.requestId] });
       const previousOperation = existing.rows[0];
       if (previousOperation) {
         if (previousOperation.role !== role || previousOperation.fingerprint !== fingerprint) throw new CareError("Este identificador de envio já foi usado para outra ação.", 409);
-        return publicState(state, role, this.clock());
+        return publicState(state, role, this.clock(), account);
       }
       const before = structuredClone(state);
       const now = this.clock();
@@ -155,7 +227,7 @@ export class CareRepository {
       await this.save(transaction, state);
       await transaction.execute({ sql: "INSERT INTO operations (case_id, request_id, role, fingerprint, created_at) VALUES (?, ?, ?, ?, ?)", args: [caseId, action.requestId, role, fingerprint, now.toISOString()] });
       await this.audit(transaction, caseId, role, action.type, before, state, action.requestId);
-      return publicState(state, role, now);
+      return publicState(state, role, now, account);
     });
   }
 
@@ -191,7 +263,7 @@ export class CareRepository {
   async importDraft(token: string | undefined, document: DocumentRef, extraction: ExtractionResult): Promise<CareState> {
     const parsed = parseExtraction(extraction);
     return this.transaction(async (transaction) => {
-      const { caseId, state, role } = await this.session(transaction, token);
+      const { caseId, state, role, account } = await this.session(transaction, token);
       requireCaregiver(role);
       requireDraft(state);
       const stored = await transaction.execute({ sql: "SELECT id, name, mime_type, page_count FROM documents WHERE id = ? AND case_id = ?", args: [document.id, caseId] });
@@ -207,7 +279,7 @@ export class CareRepository {
       await transaction.execute({ sql: "UPDATE documents SET page_count = ? WHERE id = ?", args: [pageCount, document.id] });
       await this.save(transaction, state);
       await this.audit(transaction, caseId, role, "import_draft", before, state);
-      return publicState(state, role, this.clock());
+      return publicState(state, role, this.clock(), account);
     });
   }
 
