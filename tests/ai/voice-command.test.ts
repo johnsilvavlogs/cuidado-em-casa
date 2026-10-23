@@ -14,6 +14,15 @@ test("only completed, supported and unambiguous decisions can propose a record",
   assert.equal(readVoiceCommand(event("change_dose", "med-08"), "r"), null);
   assert.equal(readVoiceCommand({ ...event("mark_done", "med-08"), type: "decision.created" }, "r"), null);
 });
+test("native trigger decisions use the server event ID without inventing a decision ID", () => {
+  const native = { ...event("mark_done", "med-08"), event_id: "evt-real", delegation_id: null, source_event_type: "session.input_transcript.delta", source_event_id: "input-1", trigger_id: "trigger-1" };
+  delete (native.event.decision as { id?: string }).id;
+  const first = readVoiceCommand(native, "request-1")!;
+  const duplicate = readVoiceCommand(native, "request-2")!;
+  assert.equal(first.decisionId, "evt-real");
+  assert.equal(duplicate.decisionId, first.decisionId);
+  assert.equal(first.delegationId, null);
+});
 test("confirmation binds medication to the exact occurrence and reuses the request ID", () => {
   const proposed = readVoiceCommand(event("mark_not_done", "med-20"), "stable-request")!;
   assert.deepEqual(confirmedVoiceAction(proposed, state), { type: "record_task", taskId: "med-20", status: "not_done", requestId: "stable-request" });

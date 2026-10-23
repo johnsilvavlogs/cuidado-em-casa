@@ -24,7 +24,7 @@ export function Portrait({ name, role }: { name: string; role: "patient" | "care
   return <span className="portrait" data-parity-anchor="identity"><Image src={role === "caregiver" ? "/images/marina-avatar.png" : "/images/helena-avatar.png"} alt="" width={72} height={72} priority /><span>{firstName(name)}</span></span>;
 }
 
-export const ActionErrorContext = createContext<string | null>(null);
+export const ActionErrorContext = createContext<{ message: string; retry: () => Promise<boolean> } | null>(null);
 export const ActionFeedbackContext = createContext({ busy: "", notice: "" });
 
 export type ActionInput = CareAction extends infer T ? T extends CareAction ? Omit<T, "requestId"> : never : never;
@@ -49,10 +49,9 @@ export function Busy({ children = "Salvando…" }: { children?: ReactNode }) {
   return <><SpinnerGapIcon className="spin" size={20} aria-hidden="true" />{children}</>;
 }
 
-export function Modal({ title, subtitle, children, onClose, wide = false, variant = "", headerContent }: { title: string; subtitle?: string; children: ReactNode; onClose: () => void; wide?: boolean; variant?: string; headerContent?: ReactNode }) {
+export function Modal({ title, subtitle, children, onClose, wide = false, variant = "", headerContent, headingContent }: { title: string; subtitle?: string; children: ReactNode; onClose: () => void; wide?: boolean; variant?: string; headerContent?: ReactNode; headingContent?: ReactNode }) {
   const id = useId();
   const error = useContext(ActionErrorContext);
-  const feedback = useContext(ActionFeedbackContext);
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const element = dialog.current;
@@ -63,9 +62,8 @@ export function Modal({ title, subtitle, children, onClose, wide = false, varian
   }, []);
   return <dialog ref={dialog} className={`modal ${wide ? "modal-wide" : ""} ${variant}`} data-parity-screen={variant || undefined} aria-labelledby={id} onCancel={onClose} onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     {headerContent}
-    <div className="modal-header" data-parity-anchor="heading-group"><div><h2 id={id} data-parity-anchor="heading-type">{title}</h2>{subtitle && <p className="muted">{subtitle}</p>}</div><button className="icon-button" aria-label="Fechar" onClick={onClose}><XIcon size={24} /></button></div>
-    {(feedback.busy || feedback.notice) && <p className="modal-feedback" role="status" aria-live="polite">{feedback.busy ? <Busy>{feedback.busy}</Busy> : feedback.notice}</p>}
-    {error && <p className="error-message modal-error" role="alert">{error} Corrija os dados ou tente a ação novamente.</p>}
+    <div className="modal-header" data-parity-anchor="heading-group"><div>{headingContent ? <><h2 id={id} data-parity-anchor="heading-type">{title}</h2>{headingContent}</> : <><h2 id={id} data-parity-anchor="heading-type">{title}</h2>{subtitle && <p className="muted">{subtitle}</p>}</>}</div><button className="icon-button" aria-label="Fechar" onClick={onClose}><XIcon size={24} /></button></div>
+    {error && <div className="error-message modal-error" role="alert"><p>{error.message}</p><button className="button secondary compact" onClick={() => void error.retry()}>Tentar novamente</button></div>}
     {children}
   </dialog>;
 }

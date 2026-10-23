@@ -54,3 +54,7 @@ Estas versões guardam a exploração anterior. Incluem telas com vários cuidad
 - A pasta `source/` preserva os trechos textuais de construção e revisão dos wireframes. São registros históricos, dependentes do contexto do editor, e não um script único pronto para executar.
 - As imagens completas ficam neste repositório e não dependem do carregamento do quadro externo.
 - Em 23/10, a thread de recuperação observou que as páginas sumiam ao recarregar o quadro online. A cópia local foi preservada; ela não comprova que a sincronização remota foi corrigida.
+
+## Ajustes visuais de 23 de outubro
+
+A direção de cores, tipografia e hierarquia do tldraw foi preservada. Por orientação posterior de John, a interface normal não mostra rótulos de demonstração ou dados fictícios, nem status permanente de atualização. O perfil usa retrato ilustrado circular e primeiro nome. A natureza sintética dos casos permanece documentada tecnicamente. Os retratos locais `public/images/helena-avatar.png` e `marina-avatar.png` foram gerados com Image Gen: mulher idosa de cabelo prateado e mulher adulta de cabelo castanho, ambas em ilustração editorial suave, com fundo verde/azul claro e enquadramento de cabeça e ombros.
