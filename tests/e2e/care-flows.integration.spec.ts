@@ -51,7 +51,7 @@ async function keyboardReach(page: Page, target: Locator) {
 function actionsFrom(page: Page) {
   const actions: ActionBody[] = [];
   page.on("request", (request) => {
-    if (request.url().endsWith("/api/actions") && request.method() === "POST") actions.push(request.postDataJSON() as ActionBody);
+    if (request.url().endsWith("/api/actions") && request.method() === "POST") actions.push(request.postDataJSON().action as ActionBody);
   });
   return actions;
 }
