@@ -6,7 +6,7 @@ import type { CareAction, CareState, Role } from "@/lib/contracts";
 import DailyCare from "@/components/daily-care";
 import PlanPanel from "@/components/plan-panel";
 import VoicePanel from "@/components/voice-panel";
-import { ActionErrorContext, ActionFeedbackContext, Brand, Busy, careText, dateLabel, EmptyState, firstName, Modal, Portrait, timeLabel, type ActionInput } from "@/components/care-ui";
+import { ActionErrorContext, ActionFeedbackContext, Brand, Busy, EmptyState, firstName, historyDateTimeLabel, historyText, Modal, Portrait, type ActionInput } from "@/components/care-ui";
 
 type Section = "today" | "plan" | "history";
 type ApiFailure = { message: string; retry: () => Promise<boolean> };
@@ -157,5 +157,5 @@ export default function Home() {
 }
 
 function History({ state }: { state: CareState }) {
-  return <div className="stack history-content"><div className="section-heading"><div><p className="eyebrow">Tudo no mesmo lugar</p><h1>Histórico do cuidado</h1><p className="muted">Registros, correções e pedidos de apoio, com autor e horário.</p></div><span className="icon-disc"><ClockCounterClockwiseIcon size={27} /></span></div>{state.timeline.length === 0 ? <EmptyState icon={<ClockCounterClockwiseIcon size={30} />} title="O histórico começa aqui">Os próximos registros e pedidos de ajuda aparecerão nesta lista.</EmptyState> : <ol className="timeline">{state.timeline.map((event) => <li key={event.id}><span className="timeline-icon"><CheckCircleIcon size={19} /></span><article><div className="timeline-meta"><strong>{event.author === "patient" ? state.patient.name : state.patient.caregiverName}</strong><span>{dateLabel(event.createdAt)} · {timeLabel(event.createdAt)}</span></div><p>{careText(event.text)}</p></article></li>)}</ol>}<p className="small-note">As correções mantêm os registros anteriores para preservar o histórico.</p></div>;
+  return <div className="stack history-content"><div className="section-heading"><div><p className="eyebrow">Tudo no mesmo lugar</p><h1>Histórico do cuidado</h1><p className="muted">Registros, correções e pedidos de apoio, com autor e horário.</p></div><span className="icon-disc"><ClockCounterClockwiseIcon size={27} /></span></div>{state.timeline.length === 0 ? <EmptyState icon={<ClockCounterClockwiseIcon size={30} />} title="O histórico começa aqui">Os próximos registros e pedidos de ajuda aparecerão nesta lista.</EmptyState> : <ol className="timeline">{state.timeline.map((event) => <li key={event.id}><span className="timeline-icon"><CheckCircleIcon size={19} /></span><article><div className="timeline-meta"><strong>{event.author === "patient" ? state.patient.name : state.patient.caregiverName}</strong><span>Gravado em {historyDateTimeLabel(event.createdAt)}</span></div><p>{historyText(event.text)}</p></article></li>)}</ol>}<p className="small-note">As correções mantêm os registros anteriores para preservar o histórico.</p></div>;
 }

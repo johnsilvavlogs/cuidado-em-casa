@@ -8,6 +8,17 @@ import type { CareAction, CareState } from "@/lib/contracts";
 export function careText(text: string): string {
   return text.replace(/\s*\(fictício\)/gi, "").replaceAll("Exemplo fictício, sem uso real.", "").trim();
 }
+export function historyDateTimeLabel(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const timeZone = "America/Sao_Paulo";
+  return `${date.toLocaleDateString("pt-BR", { timeZone, day: "2-digit", month: "2-digit", year: "numeric" })} às ${date.toLocaleTimeString("pt-BR", { timeZone, hour: "2-digit", minute: "2-digit" })}`;
+}
+
+export function historyText(text: string): string {
+  return careText(text).replace(/Horário informado: (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))/g, (_, timestamp: string) => `Horário informado: ${historyDateTimeLabel(timestamp)}`);
+}
+
 export const firstName = (name: string) => name.trim().split(/\s+/)[0];
 export function Portrait({ name, role }: { name: string; role: "patient" | "caregiver" }) {
   return <span className="portrait" data-parity-anchor="identity"><Image src={role === "caregiver" ? "/images/marina-avatar.png" : "/images/helena-avatar.png"} alt="" width={72} height={72} priority /><span>{firstName(name)}</span></span>;

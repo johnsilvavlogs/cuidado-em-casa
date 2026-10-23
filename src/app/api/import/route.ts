@@ -1,6 +1,7 @@
 import { extractDocument } from "@/lib/ai/extract";
 import { getSessionState, importDraft, storeDocument } from "@/lib/server/care-store";
-import { assertSameOrigin, privateHeaders } from "@/lib/server/care-http";
+import { assertSameOrigin, errorResponse, privateHeaders } from "@/lib/server/care-http";
+import { CareError, isCareError } from "@/lib/server/care-domain";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -20,7 +21,14 @@ export async function POST(request: Request) {
     if (session.plan.status === "active") return Response.json({ error: "O plano já foi ativado. Inicie outro acompanhamento para preparar um plano." }, { status: 409 });
     const length = Number(request.headers.get("content-length") || 0);
     if (length > 11 * 1024 * 1024) return Response.json({ error: "Use um arquivo de até 10 MB." }, { status: 413 });
-    const form = await request.formData();
+    const contentType = request.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
+    if (contentType !== "multipart/form-data" && contentType !== "application/x-www-form-urlencoded") throw new CareError("Envie as orientações em um formulário com arquivo ou texto.", 415);
+    let form: FormData;
+    try {
+      form = await request.formData();
+    } catch {
+      throw new CareError("O formulário enviado é inválido. Confira o arquivo ou texto e envie novamente.");
+    }
     const file = form.get("file");
     const text = String(form.get("text") ?? "").trim();
     let bytes: Uint8Array;
@@ -43,10 +51,7 @@ export async function POST(request: Request) {
     const document = await storeDocument({ name: filename, mimeType, bytes });
     return Response.json(await importDraft(document, extraction), { headers: privateHeaders });
   } catch (error) {
-    const status = typeof error === "object" && error && "status" in error ? Number(error.status) : 502;
-    if ([401, 403, 409].includes(status)) {
-      return Response.json({ error: status === 401 ? "Entre novamente." : status === 403 ? "Você não tem permissão para importar." : "O plano mudou durante a leitura. Atualize a página." }, { status });
-    }
+    if (isCareError(error)) return errorResponse(error);
     return Response.json({ error: "Não foi possível ler este documento. Tente novamente, envie uma imagem mais legível ou cadastre as orientações manualmente." }, { status: 502 });
   }
 }

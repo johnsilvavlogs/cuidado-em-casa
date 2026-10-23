@@ -4,6 +4,7 @@ import { useId, useState, type FormEvent } from "react";
 import { ArrowRightIcon, BedIcon, BellRingingIcon, BowlFoodIcon, CaretDownIcon, CheckCircleIcon, CheckIcon, ClockIcon, FileTextIcon, HandHeartIcon, InfoIcon, MicrophoneIcon, PencilSimpleIcon, PhoneIcon, SirenIcon, SmileyIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import type { CareState, CheckIn, DraftItem, TaskOccurrence } from "@/lib/contracts";
 import { Brand, Busy, careText, EmptyState, firstName, foodLabels, Modal, moodLabels, Portrait, sleepLabel, sleepQualityLabels, timeLabel, todayString, type RunAction } from "./care-ui";
+import { validPeriod } from "@/lib/schedule-period";
 import DocumentViewer from "./document-viewer";
 
 type Props = { state: CareState; run: RunAction; busy: boolean; onVoice: () => void; onHistory: () => void };
@@ -17,6 +18,7 @@ export default function DailyCare({ state, run, busy, onVoice, onHistory }: Prop
   const [correcting, setCorrecting] = useState<TaskOccurrence | null>(null);
   const [source, setSource] = useState<DraftItem | null>(null);
   const isCaregiver = state.role === "caregiver";
+  const pendingPeriods = state.plan.items.filter((item) => item.category === "medication" && !validPeriod(item.schedule?.period));
   const registered = state.tasks.filter((task) => task.status !== "pending").length;
   const latestCheckIn = state.checkIns.find((entry) => !entry.referenceDate || entry.referenceDate === todayString());
   const openHelp = state.helpRequests.filter((help) => help.status === "open");
@@ -42,6 +44,7 @@ export default function DailyCare({ state, run, busy, onVoice, onHistory }: Prop
 
   return <div className={`daily-view ${isCaregiver ? "caregiver-view" : "patient-view"}`} data-parity-screen={isCaregiver ? "caregiver-routine" : "patient-routine"}>
     <div className="daily-heading" data-parity-anchor="heading-group"><h1 data-parity-anchor="heading-type">{isCaregiver ? `Acompanhamento de ${firstName(state.patient.name)}` : `Olá, ${firstName(state.patient.name)}.`}</h1><p className="muted">Hoje, {date}</p>{!isCaregiver && <p className="daily-count">{registered} de {state.tasks.length} tarefas registradas</p>}</div>
+    {state.plan.status === "active" && pendingPeriods.length > 0 && <div className="notice" role="status"><WarningCircleIcon size={24} /><div><strong>Período do medicamento a conferir</strong><p>As tarefas de {pendingPeriods.map((item) => item.title).join(", ")} estão suspensas. {isCaregiver ? "Abra o Plano e confira as datas com a fonte para retomar o acompanhamento." : "Seu cuidador precisa conferir as datas no Plano para retomar o acompanhamento."} A orientação e os registros anteriores foram preservados.</p></div></div>}
     {state.plan.status !== "active" ? <EmptyState icon={<FileTextIcon size={31} />} title="Seu plano está sendo preparado">{isCaregiver ? "Abra o Plano para importar e conferir as orientações." : "As orientações aparecerão aqui depois da conferência do seu cuidador."}</EmptyState> : isCaregiver ? <div className="caregiver-grid" data-parity-anchor="care-column">
       {latestHelp?.urgent ? <>{helpCard}{attentionCard}</> : <>{attentionCard}{helpCard}</>}
       <section className="card wellbeing-card caregiver-wellbeing" data-parity-anchor="wellbeing-summary"><div className="section-heading small"><h2>Bem-estar de hoje</h2><button className="icon-button transparent" aria-label="Informar bem-estar" onClick={() => setWellbeing(true)}><ArrowRightIcon size={21} /></button></div><div className="caregiver-wellbeing-content"><WellbeingSummary checkIn={latestCheckIn} state={state} compact /><div className="caregiver-progress"><CheckCircleIcon size={29} /><div><strong>{registered} de {state.tasks.length} tarefas registradas</strong><div className="progress-track" data-parity-anchor="progress-track" role="progressbar" aria-label="Tarefas registradas" aria-valuenow={registered} aria-valuemin={0} aria-valuemax={state.tasks.length || 1}><span style={{ width: `${state.tasks.length ? registered / state.tasks.length * 100 : 0}%` }} /></div></div></div></div></section>
@@ -59,7 +62,7 @@ export default function DailyCare({ state, run, busy, onVoice, onHistory }: Prop
 function WellbeingSummary({ checkIn, state, compact = false }: { checkIn?: CheckIn; state: CareState; compact?: boolean }) {
   const author = checkIn?.author === state.role ? "Informado por você" : `Informado por ${firstName(checkIn?.author === "patient" ? state.patient.name : state.patient.caregiverName)}`;
   return <div className={`wellbeing-summary ${compact ? "summary-compact" : ""}`}>
-    <div className="wellbeing-row"><span className="icon-disc"><BedIcon size={25} /></span><div><strong>{checkIn?.sleepMinutes != null ? `Sono: ${sleepLabel(checkIn.sleepMinutes)}` : "Sono não informado"}</strong><small>{checkIn?.sleepQuality ? sleepQualityLabels[checkIn.sleepQuality] : checkIn ? `${author} · ${timeLabel(checkIn.updatedAt ?? checkIn.createdAt)}` : "Relato manual opcional"}</small></div></div>
+    <div className="wellbeing-row"><span className="icon-disc"><BedIcon size={25} /></span><div><strong>{checkIn?.sleepMinutes != null ? `Sono: ${sleepLabel(checkIn.sleepMinutes)}` : "Sono não informado"}</strong><small>{checkIn ? <>{checkIn.sleepQuality && <>{sleepQualityLabels[checkIn.sleepQuality]} · </>}{author} · {timeLabel(checkIn.updatedAt ?? checkIn.createdAt)}</> : "Relato manual opcional"}</small></div></div>
     {!compact && <div className="wellbeing-row"><span className="icon-disc amber"><BowlFoodIcon size={25} /></span><div><strong>Alimentação</strong><small>{checkIn?.food ? foodLabels[checkIn.food] : "Ainda não informada"}{checkIn?.mood ? ` · ${moodLabels[checkIn.mood]}` : ""}</small></div></div>}
     {compact && checkIn?.sleepQuality && checkIn.sleepQuality !== "okay" && <p className="sleep-attention-note">Converse sobre como ela está se sentindo.</p>}
   </div>;
