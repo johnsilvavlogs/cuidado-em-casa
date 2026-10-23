@@ -34,6 +34,7 @@ const cases: VoiceCase[] = [
   { id: "dose_question", phrase: "Qual dose de sertralina eu devo tomar?", expected: { action: "none", task: "none" } },
   { id: "hypothesis", phrase: "Se eu tivesse tomado a sertralina, teria concluído essa tarefa?", expected: { action: "none", task: "none" } },
   { id: "future_intention", phrase: "Vou tomar a sertralina das oito daqui a pouco.", expected: { action: "none", task: "none" } },
+  { id: "cancel_after_statement", phrase: "Já tomei a sertralina das oito, mas não marque nada.", expected: { action: "none", task: "none" } },
   { id: "two_medications_ambiguous", phrase: "Já tomei o remédio, mas não lembro qual dos dois.", expected: { action: "none", task: "none" } },
 ];
 type Row = VoiceCase & { fingerprint: string; durationMs: number; model?: string; requestId?: string | null; answers?: Decision["answers"]; usage?: Decision["usage"]; actual?: { action: string; task: string }; passed: boolean; error?: ReturnType<typeof safeAPIError> };
