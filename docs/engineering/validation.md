@@ -33,7 +33,9 @@ A revisão de documentos permite confirmar em lote os itens claros após a confe
 
 Outra execução pelo navegador importou texto novo pela API real, confirmou dois cuidados, ativou o plano e mostrou os mesmos cuidados para a pessoa cuidada. Os testes de revisão com PDFs e itens transcritos separadamente comprovam o formulário, a fonte, o bloqueio e a ativação; não contam como uma nova avaliação da qualidade da extração.
 
-As faixas de sono — menos de 4 horas, cerca de 6 horas e 8 horas ou mais — são armazenadas como faixas, sem inventar minutos. Testes em 320 e 390 px verificaram seleção, gravação, leitura pelo cuidador, correção, recarga e a alternativa de duração exata. Pedidos de ajuda conservam o cuidado e a fonte após a virada do dia; resolver a ajuda não conclui a tarefa.
+As faixas de sono — menos de 4 horas, cerca de 6 horas e 8 horas ou mais — são armazenadas como faixas, sem inventar minutos. Testes em 320 e 390 px verificaram seleção, gravação, leitura pelo cuidador, correção e recarga. O formulário atual usa somente essas três escolhas; editar alimentação ou humor preserva um relato preciso anterior. Pedidos de ajuda conservam o cuidado e a fonte após a virada do dia; resolver a ajuda não conclui a tarefa.
+
+A revisão integrada pelo PR37 seleciona explicitamente a voz Bossa em português brasileiro e impede ofertas de lembretes futuros que o produto não entrega. Essa frente registrou uma conversa WebRTC real, a proposta de caminhada e a gravação confirmada, além da leitura no histórico da cuidadora.
 
 ## Reproduzir
 

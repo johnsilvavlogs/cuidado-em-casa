@@ -175,3 +175,8 @@
 .sleep-duration-choices > button.selected { background: #006b5b; color: white; border-color: #006b5b; }
 .sleep-duration-choices > button:focus-visible { outline: 3px solid #176d57; outline-offset: 3px; }
 .sleep-duration-choices > button:hover:not(.selected) { background: #f1f6ec; }
+
+@media (max-width: 720px) {
+  .sleep-duration-choices { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .sleep-duration-choices > button { min-height: 68px; padding: 8px 4px; }
+}
