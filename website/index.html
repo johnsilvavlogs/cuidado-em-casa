@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ebe5e3">
+  <meta name="description" content="Transforme orientações em uma rotina compartilhada. Conheça o Cuidado em Casa, protótipo web com revisão humana e registros por voz com confirmação.">
+  <title>Cuidado em Casa — A rotina, compartilhada</title>
+  <link rel="canonical" href="https://cuidado-em-casa.johnsilvabr.chatgpt.site/">
+  <meta property="og:title" content="Cuidado em Casa">
+  <meta property="og:description" content="Da orientação recebida ao cuidado acompanhado. Conheça o protótipo e explore as perspectivas de Helena e Marina.">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="pt_BR">
+  <meta property="og:url" content="https://cuidado-em-casa.johnsilvabr.chatgpt.site/">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="assets/work-sans-400.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="stylesheet" href="styles.css">
+  <script src="config.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
+<svg class="symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
+  <symbol id="home" viewBox="0 0 32 32"><path d="M3 15 16 4l13 11M7 13v15h18V13M13 28v-8h6v8"/><path d="M12.5 13.5c0-3 3.5-3 3.5 0 0-3 3.5-3 3.5 0 0 2-3.5 4.5-3.5 4.5s-3.5-2.5-3.5-4.5Z"/></symbol>
+  <symbol id="arrow" viewBox="0 0 24 24"><path d="M3 12h17M14 5l7 7-7 7"/></symbol>
+  <symbol id="walk" viewBox="0 0 32 32"><circle cx="19" cy="5" r="2.5"/><path d="m14 28 3-9-3-7 4-3 4 7 5 1M16 18l-6 6M15 11l-5 5-5 1M18 10l-1 9 6 9"/></symbol>
+  <symbol id="bed" viewBox="0 0 32 32"><path d="M4 10v18M28 13v15M4 24h24M4 18h24M9 12h8v6H9zM19 15h9"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path d="m5 12 4 4L20 5"/></symbol>
+  <symbol id="sheet" viewBox="0 0 24 24"><path d="M5 3h9l5 5v13H5zM14 3v6h5M8 13h8M8 17h6"/></symbol>
+  <symbol id="mic" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M6 10v2a6 6 0 0 0 12 0v-2M12 18v4M8 22h8"/></symbol>
+</defs></svg>
+<main id="conteudo">
+<section class="hero" aria-labelledby="hero-title" data-parity="hero">
+  <div class="room" aria-hidden="true"><img src="assets/hero-room.png" width="1536" height="1024" alt="" fetchpriority="high"></div>
+  <header class="site-header" data-parity="header">
+    <a class="brand" href="#conteudo" aria-label="Cuidado em Casa, início"><svg><use href="#home"/></svg><span>Cuidado em Casa</span></a>
+    <nav aria-label="Navegação principal"><a href="#como-funciona">Como funciona</a><a href="#por-dentro">Por dentro</a><a href="#duvidas">Dúvidas</a></nav>
+  </header>
+  <div class="hero-copy" data-parity="copy-edge">
+    <h1 id="hero-title" data-parity="title"><span>O cuidado</span><span>continua em casa</span></h1>
+    <p class="hero-description" data-parity="description">Organize as orientações em uma rotina compartilhada.<br class="desktop-break"> Use a voz para registrar o dia e acompanhe o que já foi feito.</p>
+    <a href="#previa" class="button primary-cta" data-app-link data-parity="primary">Testar no navegador <svg aria-hidden="true"><use href="#arrow"/></svg></a>
+    <div class="hero-caption" data-parity="caption"><p>Protótipo web pensado para o celular.</p><p>Prévia interativa · dados fictícios</p></div>
+  </div>
+  <div class="source-paper" data-parity="paper" aria-label="Exemplo fictício de orientações, sem dados clínicos reais">
+    <p class="paper-title">Orientações para casa</p><p class="paper-note">Exemplo fictício</p>
+    <ul><li>Caminhada leve às 9h.</li><li>Registrar como foi a noite.</li><li>Contar como está se sentindo.</li></ul>
+    <p class="paper-bottom">Conferir cada item antes de ativar a rotina.</p>
+  </div>
+  <section class="preview" id="previa" aria-label="Prévia interativa com dados fictícios" data-parity="preview">
+    <div class="role-switch" role="group" data-selected="helena" data-parity="role-switch" aria-label="Escolha de quem você quer ver a rotina">
+      <button type="button" class="role-button is-selected" aria-pressed="true" data-role="helena">Helena</button>
+      <button type="button" class="role-button" aria-pressed="false" data-role="marina">Marina</button>
+    </div>
+    <div class="phones" data-current-role="helena">
+      <article class="phone helena-phone" data-person="helena" data-parity="helena" data-ui aria-labelledby="helena-name">
+        <div class="phone-status" aria-hidden="true"><span>9:41</span><span class="notch"></span><span>▮▮▮ ▰</span></div>
+        <div class="phone-top"><svg aria-hidden="true"><use href="#home"/></svg><span>Cuidado em Casa</span></div>
+        <div class="phone-content"><p class="greeting" id="helena-name">Bom dia, Helena</p><div class="phone-heading"><h2>Sua rotina de hoje</h2><span>Hoje</span></div>
+          <div class="care-card walking-card"><div class="care-row"><span class="care-icon"><svg aria-hidden="true"><use href="#walk"/></svg></span><div><h3>Caminhada leve</h3><p>9h · do seu plano</p></div></div><p class="record-status" data-walk-status>Sem registro</p><p class="attribution" data-attribution hidden>Registrado por Helena · 9h12</p><button class="phone-button" type="button" data-propose="walk">Registrar caminhada</button></div>
+          <div class="care-card sleep-card"><div class="care-row"><span class="care-icon"><svg aria-hidden="true"><use href="#bed"/></svg></span><div><h3>Como foi sua noite?</h3><p>Conte como dormiu.</p></div></div><button class="text-button" type="button" data-propose="sleep">Registrar sono <svg aria-hidden="true"><use href="#arrow"/></svg></button><p class="sleep-status" data-sleep-status hidden></p></div>
+          <p class="phone-note">Exemplo da rotina já revisada.</p>
+        </div>
+        <div class="phone-nav" aria-hidden="true"><span class="current">Meu dia</span><span>Plano</span><span>Histórico</span></div>
+      </article>
+      <article class="phone marina-phone" data-person="marina" data-parity="marina" data-ui aria-labelledby="marina-name">
+        <div class="phone-status" aria-hidden="true"><span>9:41</span><span class="notch"></span><span>▮▮▮ ▰</span></div>
+        <div class="phone-top"><svg aria-hidden="true"><use href="#home"/></svg><span>Cuidado em Casa</span></div>
+        <div class="phone-content"><p class="greeting" id="marina-name">Bom dia, Marina</p><div class="phone-heading"><h2>O dia de Helena</h2><span>Hoje</span></div>
+          <div class="care-card walking-card"><div class="care-row"><span class="care-icon"><svg aria-hidden="true"><use href="#walk"/></svg></span><div><h3>Caminhada leve</h3><p>9h · do seu plano</p></div></div><p class="record-status" data-walk-status>Sem registro</p><p class="attribution" data-attribution hidden>Registrado por Helena · 9h12</p></div>
+          <div class="care-card marina-context"><h3>A mesma rotina</h3><p data-caregiver-summary>O registro de Helena aparece aqui depois da confirmação.</p></div>
+          <div class="care-card sleep-summary"><div class="care-row"><span class="care-icon"><svg aria-hidden="true"><use href="#bed"/></svg></span><div><h3>Sono de hoje</h3><p data-caregiver-sleep>Ainda não informado</p></div></div></div>
+          <button class="text-button reset-preview" type="button" data-reset>Reiniciar prévia <svg aria-hidden="true"><use href="#arrow"/></svg></button>
+        </div>
+        <div class="phone-nav" aria-hidden="true"><span class="current">Hoje</span><span>Plano</span><span>Histórico</span></div>
+      </article>
+    </div>
+    <p class="preview-note">Registre com Helena. Acompanhe com Marina.<br>Esta prévia não salva dados no aplicativo.</p>
+    <p class="sr-only" role="status" aria-live="polite" id="preview-status"></p>
+  </section>
+</section>
+<section class="voice-section section-space" id="como-funciona" aria-labelledby="voice-title">
+  <div class="voice-words"><h2 id="voice-title" data-reveal="rise">Você fala.<br>Você confirma.</h2><p data-reveal="rise">Conte como dormiu, como se alimentou ou se fez um cuidado da rotina.</p><blockquote data-reveal="side">“Dormi pouco<br>esta noite.”</blockquote><p class="voice-caption" data-reveal="rise">Exemplo de uso no aplicativo.</p><p data-reveal="rise"><strong>Antes de salvar, você confere.</strong><br>Revise a proposta e confirme na tela. Se preferir, use os botões. O registro guarda quem fez e quando.</p><p class="tech-note" data-reveal="rise">GPT-Live conduz a conversa. Decisions interpreta a intenção e gera uma proposta para você conferir.</p></div>
+  <div class="voice-proof"><figure class="voice-screen" data-reveal="settle"><img src="assets/voice.png" width="390" height="844" alt="Captura do protótipo: conversa com Helena, microfone desligado e opções para começar a falar ou usar os botões." loading="lazy"><figcaption>Conversa no aplicativo.<br>Dados fictícios; microfone desligado.</figcaption></figure><div class="confirmation-example" data-reveal="rise" data-ui><div class="mini-mic"><svg aria-hidden="true"><use href="#mic"/></svg></div><p>Proposta para conferir</p><h3>Sono de hoje: pouco.</h3><p>Ainda não registrado.<br>A confirmação vem antes de salvar.</p><span class="sample-label">Exemplo de interface</span></div></div>
+</section>
+<section class="story-intro" id="do-documento-ao-dia" data-parity="continuation">
+  <div data-reveal="rise"><h2>Da orientação ao dia</h2><p>O cuidado começa no que foi orientado. A rotina ganha forma com revisão humana — e cada registro chega às duas perspectivas.</p></div>
+  <div class="flow" aria-label="Orientações, revisão humana e rotina compartilhada" data-reveal="side"><span><svg aria-hidden="true"><use href="#sheet"/></svg>Orientações</span><svg class="flow-arrow" aria-hidden="true"><use href="#arrow"/></svg><span>Revisão<br>humana</span><svg class="flow-arrow" aria-hidden="true"><use href="#arrow"/></svg><span>Rotina<br>compartilhada</span></div>
+</section>
+<section class="review-section section-space" aria-labelledby="review-title">
+  <div class="section-copy"><h2 id="review-title" data-reveal="rise">Começa com uma<br>boa conferência</h2><p data-reveal="rise">Envie um PDF, uma foto ou o texto das orientações. A IA prepara um rascunho; quem cuida confere cada item antes de ativar a rotina.</p>
+    <ol class="review-steps"><li data-reveal="rise"><strong>Envie as orientações</strong><span>Use texto impresso legível em PDF ou foto, ou cole o texto.</span></li><li data-reveal="rise"><strong>Confira com o original</strong><span>Revise cada cuidado, corrija a leitura e esclareça as dúvidas. O trecho de origem fica à mão.</span></li><li data-reveal="rise"><strong>Ative a rotina</strong><span>Confirme os cuidados e resolva as pendências para acompanhar o dia.</span></li></ol>
+    <p class="tech-note" data-reveal="rise">A Responses API da OpenAI organiza a leitura em um rascunho estruturado. A confirmação continua com quem cuida.</p>
+  </div>
+  <div class="review-proof" data-reveal="settle">
+    <div class="draft-example" data-ui><p class="draft-label">Rascunho · exemplo fictício</p><p><strong>Caminhada leve</strong><br>Horário: <span class="pending">conferir no original</span></p><p>Aguarda revisão humana</p></div>
+    <div class="review-screens"><figure><img src="assets/source.png" width="390" height="844" alt="Captura do protótipo: orientação de alimentação com documento original, trecho da fonte e confirmação do cuidador." loading="lazy"><figcaption>Original disponível<br>durante a conferência.</figcaption></figure><figure><img src="assets/plan.png" width="390" height="844" alt="Captura do protótipo: plano ativo com alimentação e caminhada marcadas como conferidas." loading="lazy"><figcaption>Depois da revisão,<br>o plano fica ativo.</figcaption></figure></div>
+    <p class="image-note">Capturas do protótipo · dados fictícios.</p>
+  </div>
+</section>
+
+<section class="shared-section section-space" id="por-dentro" aria-labelledby="shared-title">
+  <div class="shared-heading"><h2 id="shared-title" data-reveal="rise">O mesmo dia,<br>duas perspectivas</h2><p data-reveal="rise">Helena consulta a rotina e conta como passou o dia. Marina acompanha os registros e os pedidos de apoio.</p><a class="inline-link" href="#previa" data-reveal="rise">Explorar a prévia <svg aria-hidden="true"><use href="#arrow"/></svg></a></div>
+  <figure class="patient-shot" data-reveal="settle"><img src="assets/patient.png" width="390" height="844" alt="Captura real do protótipo: Helena vê sua rotina, pode registrar alimentação e contar como passou a noite." loading="lazy"><figcaption>Para quem recebe o cuidado.</figcaption></figure>
+  <figure class="caregiver-shot" data-reveal="settle"><img src="assets/caregiver-history.jpg" width="390" height="844" alt="Captura real do protótipo: Marina consulta o histórico com a caminhada e o relato de sono registrados por Helena, com autoria e horário." loading="lazy"><figcaption>Quem fez, e quando.</figcaption></figure>
+  <p class="shared-note">Capturas do protótipo com personagens e dados fictícios. O convite para conectar duas contas ainda não está disponível nesta versão.</p>
+</section>
+<section class="faq-section section-space" id="duvidas" aria-labelledby="faq-title">
+  <h2 id="faq-title" data-reveal="rise">Antes de <br>experimentar</h2><div class="faq-answers"><div data-reveal="rise"><h3>Preciso instalar um aplicativo?</h3><p>Não. O protótipo abre no navegador e foi pensado para o celular. É preciso estar conectado para salvar registros.</p></div><div data-reveal="rise"><h3>A IA decide os cuidados?</h3><p>Não. Ela prepara um rascunho das orientações e propostas de registro. Não diagnostica nem recomenda ou altera tratamentos. A leitura automática não foi validada clinicamente.</p></div><div data-reveal="rise"><h3>Posso enviar qualquer receita?</h3><p>Esta versão trabalha com texto impresso legível. Manuscritos e trechos difíceis exigem revisão manual. Uma dúvida de leitura precisa ser esclarecida antes de ativar a rotina.</p></div><div data-reveal="rise"><h3>Helena e Marina são pessoas reais?</h3><p>São personagens de um caso fictício para experimentar as duas perspectivas. O convite para conectar duas contas ainda não está disponível.</p></div><details data-reveal="rise"><summary>Como a IA participa</summary><p>A leitura dos documentos usa a Responses API com GPT-6.1 Sol e saída estruturada. A conversa usa GPT-Live, com o modelo gpt-live-1. Decisions, com GPT-6 Luna, interpreta a intenção de registro. O aplicativo só salva a ação depois da confirmação na tela.</p></details></div>
+</section>
+<section class="closing section-space"><div data-reveal="rise"><h2>Veja a rotina por dentro</h2><p>Experimente o caso de Helena e Marina e conheça o caminho das orientações até o registro do dia.</p><a href="#previa" class="button" data-app-link>Testar no navegador <svg aria-hidden="true"><use href="#arrow"/></svg></a><p class="closing-note">Demonstração com dados fictícios.</p></div></section>
+</main>
+<footer><p>Cuidado em Casa · Protótipo web</p><nav aria-label="Navegação do rodapé"><a href="#como-funciona">Como funciona</a><a href="#por-dentro">Por dentro</a><a href="#duvidas">Dúvidas</a></nav><p>Feito para compartilhar o dia.</p></footer>
+<dialog id="proposal-dialog" aria-labelledby="proposal-title" data-ui><form method="dialog"><button class="dialog-close" value="cancel" aria-label="Fechar confirmação">×</button><p class="dialog-context">Prévia · proposta de Helena</p><h2 id="proposal-title">Confirmar registro</h2><p id="proposal-text">Caminhada leve, às 9h: feita.</p><p class="dialog-note">Ainda não registrado. Esta prévia não salva dados no aplicativo.</p><div class="dialog-actions"><button class="button" type="button" id="confirm-preview">Confirmar na prévia</button><button class="secondary-button" value="cancel">Cancelar</button></div></form></dialog>
+<dialog id="availability-dialog" aria-labelledby="availability-title" data-ui><form method="dialog"><button class="dialog-close" value="close" aria-label="Fechar aviso">×</button><h2 id="availability-title">A demonstração pública<br>está sendo preparada</h2><p>Enquanto isso, explore o exemplo de Helena e Marina nesta página, sem enviar dados ou usar o microfone.</p><button class="button" type="button" id="explore-preview">Explorar a prévia</button><button class="secondary-button" value="close">Fechar</button></form></dialog>
+<noscript><div class="noscript-note">A leitura desta página funciona sem JavaScript. Para alternar personagens ou experimentar um registro fictício, habilite-o no navegador. As imagens abaixo mostram o protótipo.</div></noscript>
+</body>
+</html>
