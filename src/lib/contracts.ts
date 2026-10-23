@@ -22,7 +22,8 @@ export type ExtractionResult = { items: DraftItem[]; unresolved: string[]; warni
 export type DocumentRef = { id: string; name: string; mimeType: string; url: string; pageCount: number | null };
 export type TaskOccurrence = { id: string; itemId: string; title: string; instruction: string; time: string; status: "pending" | "done" | "not_done"; priority: "important" | "normal"; recordedAt: string | null; referenceDate?: string; informedAt?: string; author?: Role; toleranceMinutes?: number };
 export type HelpRequest = { id: string; taskId: string | null; message: string; urgent: boolean; status: "open" | "resolved"; createdAt: string; resolvedAt: string | null };
-export type CheckIn = { id: string; sleepMinutes: number | null; sleepQuality: "low" | "okay" | "high" | null; food: "yes" | "partial" | "no" | null; mood: "good" | "okay" | "bad" | null; referenceDate?: string; createdAt: string; updatedAt?: string; author: Role };
+export type SleepRange = "under4" | "around6" | "8plus";
+export type CheckIn = { id: string; sleepMinutes: number | null; sleepRange?: SleepRange | null; sleepQuality: "low" | "okay" | "high" | null; food: "yes" | "partial" | "no" | null; mood: "good" | "okay" | "bad" | null; referenceDate?: string; createdAt: string; updatedAt?: string; author: Role };
 export type TimelineEvent = { id: string; text: string; createdAt: string; author: Role };
 export type CareState = {
   account?: { id: string; name: string; email: string };
@@ -42,7 +43,7 @@ export type CareAction =
   | { type: "record_task"; taskId: string; status: "done" | "not_done"; informedAt?: string; requestId: string }
   | { type: "request_help"; taskId?: string | null; message: string; urgent: boolean; requestId: string }
   | { type: "resolve_help"; helpId: string; requestId: string }
-  | { type: "check_in"; id?: string; referenceDate?: string; sleepMinutes: number | null; sleepQuality: CheckIn["sleepQuality"]; food: CheckIn["food"]; mood: CheckIn["mood"]; requestId: string }
+  | { type: "check_in"; id?: string; referenceDate?: string; sleepMinutes: number | null; sleepRange?: CheckIn["sleepRange"]; sleepQuality: CheckIn["sleepQuality"]; food: CheckIn["food"]; mood: CheckIn["mood"]; requestId: string }
   | { type: "update_item"; itemId: string; title: string; instruction: string; fields: Record<string, CareField>; questions: string[]; schedule?: DraftItem["schedule"]; requestId: string }
   | { type: "add_item"; item: DraftItem; requestId: string }
   | { type: "confirm_source_pages"; requestId: string }

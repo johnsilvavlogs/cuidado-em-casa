@@ -147,7 +147,7 @@ for (const display of displays) {
       await page.locator(".routine-more > summary").click();
       await page.locator(".compact-task").first().click();
       await page.getByRole("dialog").getByRole("button", { name: "Pedir ajuda", exact: true }).click();
-      await page.getByLabel("Como podemos ajudar?", { exact: true }).fill("Preciso de ajuda para organizar este cuidado.");
+      await page.getByLabel("De que ajuda você precisa?", { exact: true }).fill("Preciso de ajuda para organizar este cuidado.");
       await saveClick(page, page.getByRole("button", { name: "Enviar pedido de ajuda", exact: true }));
       let current = await readState(caregiver);
       const normal = current.helpRequests.find((help) => !help.urgent)!;
@@ -196,6 +196,7 @@ for (const display of displays) {
       expect(requests).toHaveLength(0);
       await page.getByRole("button", { name: "Informar como estou", exact: true }).click();
       const today = await page.locator('input[type="date"]').inputValue();
+      await page.getByRole("button", { name: "Outro tempo", exact: true }).click();
       await page.getByLabel("Horas", { exact: true }).fill("6");
       await page.getByLabel("Minutos", { exact: true }).fill("20");
       await page.getByRole("button", { name: "Pouco", exact: true }).click();
@@ -214,6 +215,7 @@ for (const display of displays) {
       const yesterday = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(priorDate);
       await page.getByRole("button", { name: "Atualizar relato", exact: true }).click();
       await page.locator('input[type="date"]').fill(yesterday);
+      await page.getByRole("button", { name: "Outro tempo", exact: true }).click();
       await expect(page.getByLabel("Horas", { exact: true })).toHaveValue("");
       await page.getByLabel("Horas", { exact: true }).fill("7");
       await page.getByLabel("Minutos", { exact: true }).fill("0");

@@ -364,6 +364,7 @@ test(`${display.id}-02-voice-sleep-and-food-preserve-existing-report`, async ({ 
   const actions = observeActions(page);
   try {
     await page.getByRole("button", { name: "Informar como estou", exact: true }).click();
+    await page.getByRole("button", { name: "Outro tempo", exact: true }).click();
     await page.getByLabel("Horas", { exact: true }).fill("7");
     await page.getByLabel("Minutos", { exact: true }).fill("15");
     await page.getByRole("button", { name: "Suficiente", exact: true }).click();
@@ -417,7 +418,7 @@ test(`${display.id}-03-denied-microphone-keeps-manual-buttons-working`, async ({
   try {
     await page.getByRole("button", { name: "Falar com assistente", exact: true }).click();
     await page.getByRole("button", { name: "Começar a falar", exact: true }).click();
-    await expect(page.getByRole("alert").filter({ hasText: "O microfone não foi autorizado" })).toBeVisible();
+    await expect(page.locator(".voice-panel").getByRole("alert")).toHaveText("Permita o microfone no navegador para falar.");
     expect(actions).toHaveLength(0);
     expect(voiceSessionRequests).toBe(0);
     await captureVoice(page, display, "error");

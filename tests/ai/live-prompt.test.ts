@@ -31,6 +31,29 @@ test("context updates preserve IDs and priority within the existing chunk bound"
   assert.match(updates.join("\n"), /"status":"done"/);
 });
 
+test("full and incremental voice context preserve approximate sleep and select the newest report", () => {
+  const ranged: CareState = { ...state, checkIns: [
+    { id: "newest", author: "patient", createdAt: "2026-10-23T15:00:00Z", referenceDate: "2026-10-23", sleepRange: "around6", sleepMinutes: null, sleepQuality: "okay", food: null, mood: null },
+    { id: "older", author: "patient", createdAt: "2026-10-22T15:00:00Z", referenceDate: "2026-10-22", sleepMinutes: 480, sleepQuality: "high", food: "yes", mood: null },
+  ] };
+  const full = buildVoiceContext(ranged, new Date("2026-10-23T16:00:00Z"));
+  const data = JSON.parse(full.split("\n")[1]);
+  assert.equal(data.checkIns[0].sleepRange, "around6");
+  assert.equal(data.checkIns[0].sleepMinutes, null);
+  assert.equal(data.checkIns[0].sleepDurationLabel, "Cerca de 6 horas");
+  assert.equal(data.checkIns[1].sleepDurationLabel, "8h00");
+  assert.match(full, /sem converter em minutos exatos/);
+  const updates = buildVoiceContextUpdates(ranged, new Date("2026-10-23T16:00:00Z"));
+  assert.ok(updates.every((chunk) => chunk.length < 850));
+  const joined = updates.join("\n");
+  assert.match(joined, /"data":"2026-10-23"/);
+  assert.match(joined, /"faixaSono":"around6"/);
+  assert.match(joined, /"duracaoSono":"Cerca de 6 horas"/);
+  assert.match(joined, /"minutos":null/);
+  assert.doesNotMatch(joined, /"minutos":480/);
+  assert.match(joined, /não converta em minutos exatos/);
+});
+
 test("conversational guidance keeps the same Decisions delegation and trigger contracts", () => {
   const config = buildLiveSessionConfig(state);
   const questions = buildVoiceQuestions(state);

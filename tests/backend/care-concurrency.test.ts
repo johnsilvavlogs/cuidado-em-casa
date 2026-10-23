@@ -84,7 +84,7 @@ if (process.env.CARE_CONCURRENCY_WORKER) {
     const client = await (repository as unknown as { database(): Promise<ReturnType<typeof createClient>> }).database();
     const begin = client.transaction.bind(client);
     let commitAttempts = 0;
-    client.transaction = async mode => {
+    client.transaction = async (mode?: "write" | "read" | "deferred") => {
       const transaction = await begin(mode);
       transaction.commit = async () => {
         commitAttempts++;
@@ -109,7 +109,7 @@ if (process.env.CARE_CONCURRENCY_WORKER) {
     const client = await (repository as unknown as { database(): Promise<ReturnType<typeof createClient>> }).database();
     const begin = client.transaction.bind(client);
     let attempts = 0;
-    client.transaction = async mode => {
+    client.transaction = async (mode?: "write" | "read" | "deferred") => {
       const transaction = await begin(mode);
       const commit = transaction.commit.bind(transaction);
       transaction.commit = async () => { attempts++; await commit(); throw new Error("commit acknowledgement lost"); };

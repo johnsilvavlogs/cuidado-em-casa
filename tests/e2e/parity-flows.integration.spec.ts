@@ -119,6 +119,7 @@ for (const display of displays) {
 
       await proof.record("wellbeing_open", "Optional wellbeing has no report.", { target: { role: "button", name: "Informar como estou" }, kind: "click", description: "Open optional form and return without saving." }, async () => {
         await page.getByRole("button", { name: "Informar como estou", exact: true }).click();
+        await page.getByRole("button", { name: "Outro tempo", exact: true }).click();
         const checks = [check("sleep remains empty", "", await page.getByLabel("Horas", { exact: true }).inputValue())];
         await page.getByRole("button", { name: "Pular", exact: true }).click();
         checks.push(check("no report on skip", 0, (await state(context)).checkIns.length)); return checks;
@@ -140,7 +141,7 @@ for (const display of displays) {
       await proof.record("support_flow", "Pending next task; no help requests.", { target: { role: "button", name: "Ajuda urgente" }, kind: "click", description: "Create normal help; inspect independent emergency link; save urgent help without dialing." }, async () => {
         await page.locator(".routine-more>summary").click(); await page.locator(".compact-task").first().click();
         await page.getByRole("dialog").getByRole("button", { name: "Pedir ajuda", exact: true }).click();
-        await page.getByLabel("Como podemos ajudar?", { exact: true }).fill("Preciso de apoio para organizar este cuidado.");
+        await page.getByLabel("De que ajuda você precisa?", { exact: true }).fill("Preciso de apoio para organizar este cuidado.");
         await clickSave(page, page.getByRole("button", { name: "Enviar pedido de ajuda", exact: true }));
         await page.getByRole("button", { name: "Ajuda urgente", exact: true }).click();
         const href = await page.getByRole("link", { name: "Ligar para o SAMU · 192", exact: true }).getAttribute("href");
@@ -211,7 +212,7 @@ for (const display of displays) {
       let helpId = "";
       await proof.record("help_resolution", "Patient sends an open normal help request tied to a pending care.", { target: { role: "button", name: "Marcar como resolvido" }, kind: "click", description: "Read reason and resolve request in caregiver UI; check both sessions and task independence." }, async () => {
         await patient.page.locator(".routine-more>summary").click(); await patient.page.locator(".compact-task").first().click();
-        await patient.page.getByRole("button", { name: "Pedir ajuda", exact: true }).click(); await patient.page.getByLabel("Como podemos ajudar?", { exact: true }).fill("Preciso de apoio neste cuidado.");
+        await patient.page.getByRole("dialog").getByRole("button", { name: "Pedir ajuda", exact: true }).click(); await patient.page.getByLabel("De que ajuda você precisa?", { exact: true }).fill("Preciso de apoio neste cuidado.");
         await clickSave(patient.page, patient.page.getByRole("button", { name: "Enviar pedido de ajuda", exact: true }));
         await expect(page.getByRole("button", { name: "Ver relato", exact: true })).toBeVisible(); await page.getByRole("button", { name: "Ver relato", exact: true }).click();
         const before = await state(context); helpId = before.helpRequests[0].id;
@@ -231,7 +232,11 @@ for (const display of displays) {
   test(`parity-${display.id}-checkin-required-states`, async ({ browser }) => {
     test.setTimeout(150_000);
     const { context, page } = await start(browser, display, "patient"); const proof = new Proof(page, context, "optional-checkin", display);
-    const open = async () => { await page.getByRole("button", { name: /^(Informar como estou|Atualizar relato)$/ }).click(); await expect(page.getByLabel("Horas", { exact: true })).toBeVisible(); };
+    const open = async () => {
+      await page.getByRole("button", { name: /^(Informar como estou|Atualizar relato)$/ }).click();
+      if (!await page.getByLabel("Horas", { exact: true }).isVisible()) await page.getByRole("button", { name: "Outro tempo", exact: true }).click();
+      await expect(page.getByLabel("Horas", { exact: true })).toBeVisible();
+    };
     try {
       await proof.record("optional_skip", "No optional reports exist.", { target: { role: "button", name: "Pular" }, kind: "click", description: "Leave an empty optional report without saving." }, async () => { const revision = (await state(context)).revision; await open(); await page.getByRole("button", { name: "Pular", exact: true }).click(); return [check("skip writes no record", 0, (await state(context)).checkIns.length), check("skip does not change revision", revision, (await state(context)).revision)]; }, async () => [check("sleep remains absent after reload", true, await page.getByText("Sono não informado", { exact: true }).isVisible())]);
       await proof.record("keyboard_and_validation", "Empty check-in opened with keyboard and invalid minutes entered.", { target: { role: "spinbutton", name: "Minutos" }, kind: "keyboard", description: "Focus inputs, reject 65 minutes, correct to 20, select food/mood, Escape without saving." }, async () => {
@@ -321,13 +326,14 @@ for (const display of displays) {
     // These are explicit caregiver choices for synthetic source items, never model truth.
     const configureAgenda = async (item: DraftItem) => {
       const dialog = page.getByRole("dialog");
+      await openCorrections();
       if (item.category === "medication") {
         await expect(dialog.getByLabel("Primeiro dia", { exact: true })).toHaveValue(dateInBrazil(new Date()));
         await expect(dialog.getByLabel("Último dia (incluído)", { exact: true })).toHaveValue(plusDays(dateInBrazil(new Date()), 2));
         agendaChoices.push({ title: item.title, choice: "Accept displayed three-day suggestion; conditional care remains conditional", evidence: item.source.quote! });
         return;
       }
-      const kind = dialog.getByLabel("Quando acompanhar", { exact: true });
+      const kind = dialog.getByRole("combobox", { name: "Quando acompanhar", exact: true });
       let startDate = dateInBrazil(new Date());
       let endDate: string | null = null;
       if (item.title === "Compressa fria" || item.title === "Restrição de corrida e saltos") {
@@ -350,7 +356,7 @@ for (const display of displays) {
         agendaChoices.push({ title: item.title, choice: "Reference only: source describes a condition/restriction or leaves scheduling unresolved; no invented dates or automatic daily tasks", evidence: item.source.quote! });
       }
       if (endDate) {
-        await dialog.getByLabel("Validade", { exact: true }).selectOption("finite");
+        await dialog.getByRole("combobox", { name: "Validade", exact: true }).selectOption("finite");
         await dialog.getByLabel("Primeiro dia", { exact: true }).fill(startDate);
         await dialog.getByLabel("Último dia (incluído)", { exact: true }).fill(endDate);
       }
@@ -419,7 +425,14 @@ for (const display of displays) {
         const linked = await start(browser, display, "patient", "ready", draft.demoId); const linkedState = await state(linked.context); await linked.context.close();
         await json(resolve(root, "source-fixture", `agenda-choices-${display.id}.json`), agendaChoices);
         return [check("all source items retained and confirmed", draft.plan.items.length, (await state(context)).plan.items.filter(item => item.confirmed).length), check("shared active plan", "active", linkedState.plan.status), check("same source retained", stored.id, linkedState.document!.id)];
-      }, async () => { await plan(page); return [check("active plan after reload", "active", (await state(context)).plan.status), check("active plan read-only", true, await page.getByText("Plano conferido pelo cuidador.", { exact: false }).isVisible())]; });
+      }, async () => {
+        await plan(page);
+        await expect(page.getByText("Orientações conferidas pelo cuidador.", { exact: true })).toBeVisible();
+        await page.locator(".plan-item").first().click();
+        await openCorrections();
+        const dialog = page.getByRole("dialog");
+        return [check("active plan after reload", "active", (await state(context)).plan.status), check("active care name is read-only", true, await dialog.getByRole("textbox", { name: "Nome do cuidado", exact: true }).evaluate((input: HTMLInputElement) => input.readOnly)), check("active instruction is read-only", true, await dialog.getByRole("textbox", { name: "Orientação completa", exact: true }).evaluate((input: HTMLTextAreaElement) => input.readOnly)), check("active care cannot be reconfirmed", 0, await dialog.getByRole("button", { name: "Confirmar cuidado", exact: true }).count())];
+      });
     } finally { await context.close(); await repository.close(); }
   });
 }

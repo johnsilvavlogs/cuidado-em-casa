@@ -46,6 +46,7 @@ export function confirmedVoiceAction(command: VoiceCommand, state: CareState, da
   return {
     type: "check_in", ...(current ? { id: current.id } : {}), referenceDate: date,
     sleepMinutes: current?.sleepMinutes ?? null,
+    ...(current?.sleepRange ? { sleepRange: current.sleepRange } : {}),
     sleepQuality: command.action.startsWith("sleep_") ? command.action === "sleep_low" ? "low" : command.action === "sleep_high" ? "high" : "okay" : current?.sleepQuality ?? null,
     food: command.action.startsWith("food_") ? command.action === "food_yes" ? "yes" : command.action === "food_partial" ? "partial" : "no" : current?.food ?? null,
     mood: current?.mood ?? null, requestId,

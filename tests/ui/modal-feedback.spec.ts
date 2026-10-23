@@ -29,7 +29,7 @@ test("a new modal owns only feedback from actions started after opening", async 
   await expect(dialog.getByRole("button", { name: "Enviar pedido urgente", exact: true })).toBeEnabled();
 
   await dialog.getByRole("button", { name: "Enviar pedido urgente", exact: true }).click();
-  await expect(dialog.locator(".modal-feedback")).toHaveText("Pedido urgente salvo e destacado para seu cuidador.");
+  await expect(dialog.locator(".modal-feedback")).toHaveText("Pedido urgente salvo.");
   await expect(dialog.getByRole("alert")).toHaveCount(0);
   await expect(dialog.getByRole("button", { name: "Pedido urgente salvo", exact: true })).toBeDisabled();
   await dialog.getByRole("button", { name: "Fechar", exact: true }).click();
