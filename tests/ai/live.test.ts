@@ -13,6 +13,9 @@ test("Live does not store audio and requires confirmation before a claimed actio
   const config = buildLiveSessionConfig(state);
   assert.equal(config.store, false);
   assert.equal(config.delegation?.type, "decisions");
+  assert.equal(config.triggers?.length, 1);
+  assert.equal(config.triggers?.[0].event_type, "session.input_transcript.delta");
+  assert.deepEqual(config.triggers?.[0].decisions.questions, buildVoiceQuestions(state));
   assert.match(config.instructions ?? "", /confirmar na tela/);
   assert.match(config.instructions ?? "", /Nunca diagnostique/);
 });
