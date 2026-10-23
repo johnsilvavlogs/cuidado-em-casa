@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { MicrophoneIcon, WaveformIcon, CheckIcon, LockSimpleIcon, SpeakerHighIcon, SpeakerSlashIcon, StopIcon, WarningCircleIcon, CircleNotchIcon, CalendarBlankIcon, PersonSimpleWalkIcon, HandHeartIcon } from "@phosphor-icons/react";
 import { firstName } from "./care-ui";
-import type { CareState } from "@/lib/contracts";
+import type { CareAction, CareSessionContext, CareState } from "@/lib/contracts";
 
 import { confirmedVoiceAction, readVoiceCommand, voiceCommandLabel, type VoiceCommand } from "@/lib/voice-command";
 import { buildVoiceContextUpdates } from "@/lib/voice-context";
@@ -41,6 +41,7 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
   const attempt = useRef(0);
   const pendingRef = useRef<VoiceCommand | null>(null);
   const latestState = useRef(state);
+  const pendingSubmission = useRef<{ action: CareAction; context: CareSessionContext } | null>(null);
   useEffect(() => { latestState.current = state; }, [state]);
   useEffect(() => {
     if (sessionReady.current && channel.current?.readyState === "open" && sentRevision.current !== state.revision) {
@@ -77,6 +78,8 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
   async function connect() {
     stop();
     const thisAttempt = attempt.current;
+    const context: CareSessionContext = { demoId: latestState.current.demoId, role: latestState.current.role };
+    pendingSubmission.current = null;
     setError(""); setSaveFailed(false); saveRequest.current = null; setSaved(false); savedRef.current = false; setTranscript(""); setInterpreting(false); setStatus("connecting"); sessionReady.current = false;
     latestTranscript.current = { id: "", receivedAt: 0 }; dismissedTranscript.current = "";
     acceptedDecisions.current.clear();
@@ -98,6 +101,16 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
         if (pc.connectionState === "failed") { stop(); setStatus("error"); setError("A conexão de voz caiu. Seus registros foram preservados; tente conectar novamente."); }
       };
       const dc = pc.createDataChannel("oai-events"); channel.current = dc;
+      function prepareSubmission(proposed: VoiceCommand): CareAction | null {
+        const current = latestState.current;
+        if (current.demoId !== context.demoId || current.role !== context.role) {
+          stop(); setStatus("error"); setError("A sessão mudou. Feche a voz e atualize a página antes de continuar.");
+          return null;
+        }
+        const action = confirmedVoiceAction(proposed, current);
+        if (action) pendingSubmission.current = { action, context };
+        return action;
+      }
       let utterance = "";
       let assistantContext = "";
       async function interpretUtterance(sequence: number) {
@@ -106,12 +119,12 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
         const controller = new AbortController(); interpretationAbort.current = controller;
         setInterpreting(true);
         try {
-          const response = await fetch("/api/voice/interpret", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ transcript: text, assistantContext: assistantContext.slice(-6000) }), signal: controller.signal });
-          if (!response.ok) throw new Error("Não consegui preparar o registro. Faça uma pausa e diga novamente, ou use os botões.");
+          const response = await fetch("/api/voice/interpret", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ transcript: text, assistantContext: assistantContext.slice(-6000), context }), signal: controller.signal });
           const message = await response.json();
+          if (!response.ok) throw new Error(message.error || "Não consegui preparar o registro. Faça uma pausa e diga novamente, ou use os botões.");
           if (sequence !== interpretationSequence.current || pendingRef.current || savedRef.current || connection.current !== pc) return;
           const proposed = readVoiceCommand(message, crypto.randomUUID());
-          if (proposed && confirmedVoiceAction(proposed, latestState.current)) {
+          if (proposed && prepareSubmission(proposed)) {
             if (proposalTimer.current) clearTimeout(proposalTimer.current);
             pendingRef.current = proposed;
             microphone.current?.getAudioTracks().forEach(track => { track.enabled = false; });
@@ -166,7 +179,7 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
               proposalTimer.current = setTimeout(() => {
                 if (connection.current !== pc || savedRef.current || pendingRef.current
                   || message.source_event_id !== latestTranscript.current.id) return;
-                const action = confirmedVoiceAction(proposed, latestState.current);
+                const action = prepareSubmission(proposed);
                 if (!action) setError("Não consegui identificar um único cuidado. Diga o nome e o horário, ou use os botões.");
                 else {
                   acceptedDecisions.current.add(proposed.decisionId);
@@ -188,7 +201,7 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
         const timeout = window.setTimeout(resolve, 5000);
         pc.addEventListener("icegatheringstatechange", () => { if (pc.iceGatheringState === "complete") { window.clearTimeout(timeout); resolve(); } });
       });
-      const response = await fetch("/api/voice/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sdp: pc.localDescription?.sdp }) });
+      const response = await fetch("/api/voice/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sdp: pc.localDescription?.sdp, context }) });
       const result = await response.json();
       if (attempt.current !== thisAttempt) return;
       if (!response.ok) throw new Error(result.error || "Não foi possível abrir a sessão de voz.");
@@ -208,10 +221,10 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
   async function confirm() {
     if (!pending || saving) return;
     setSaving(true); setSaveFailed(false); setError("");
+    const submission = pendingSubmission.current;
+    if (!submission) { setError("O cuidado não está mais disponível. Feche e confira a rotina."); setSaving(false); return; }
     if (saveRequest.current?.decisionId !== pending.decisionId) {
-      const action = confirmedVoiceAction(pending, latestState.current);
-      if (!action) { setError("O cuidado não está mais disponível. Feche e confira a rotina."); setSaving(false); return; }
-      saveRequest.current = { decisionId: pending.decisionId, body: JSON.stringify(action) };
+      saveRequest.current = { decisionId: pending.decisionId, body: JSON.stringify(submission) };
     }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15_000);
@@ -220,7 +233,7 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "O registro não foi salvo.");
       onStateChange(result);
-      savedRef.current = true; pendingRef.current = null;
+      savedRef.current = true; pendingRef.current = null; pendingSubmission.current = null;
       setSavedCommand(pending); setSaved(true); setPending(null); setTranscript(""); setError("");
       try {
         if (channel.current?.readyState === "open") channel.current.send(JSON.stringify({ type: "session.commentary.append", delegation_id: pending.delegationId, content: "A pessoa confirmou na tela. O servidor salvou o registro. Informe isso de forma breve, sem acrescentar orientação médica." }));
@@ -245,7 +258,7 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
   const statusText = saving ? "Salvando…" : pending ? "Confira o registro" : saved ? "Concluído" : status === "connecting" ? "Conectando microfone" : active ? "Microfone ligado" : "Microfone desligado";
   function correct() {
     dismissedTranscript.current = latestTranscript.current.id;
-    pendingRef.current = null;
+    pendingRef.current = null; pendingSubmission.current = null;
     if (channel.current?.readyState === "open") channel.current.send(JSON.stringify({ type: "session.commentary.append", delegation_id: pending?.delegationId ?? null, content: "A pessoa cancelou a proposta na tela para dizer novamente. Nada foi salvo. Aguarde o novo relato." }));
     setPending(null); setTranscript(""); setError(""); setSaveFailed(false); saveRequest.current = null;
   }

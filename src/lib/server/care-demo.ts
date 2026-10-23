@@ -40,14 +40,14 @@ export function createDemoState(demoId: string, scenario: "ready" | "setup", doc
       instruction: "Fazer as refeições habituais respeitando as orientações recebidas.",
       fields: { orientação: { value: "Refeições habituais", state: "readable", sourceText: "fazer as refeições habituais" } },
       source: { documentId: document!.id, page: 1, quote: "Alimentação: fazer as refeições habituais respeitando as orientações recebidas." },
-      questions: [], confirmed: true, schedule: { times: ["12:00"], priority: "normal", toleranceMinutes: 30 },
+      questions: [], confirmed: true, schedule: { times: ["12:00"], priority: "normal", toleranceMinutes: 30, period: { startDate, endDate: null }, recurrence: { kind: "daily" } },
     },
     {
       id: randomUUID(), title: "Caminhada leve", category: "activity",
       instruction: "Caminhar por 15 minutos se estiver confortável. Interromper e pedir apoio se houver dificuldade.",
       fields: { duração: { value: "15 minutos", state: "readable", sourceText: "por 15 minutos" }, condições: { value: "Se estiver confortável; interromper se houver dificuldade", state: "readable", sourceText: "se estiver confortável. Interromper e pedir apoio se houver dificuldade" } },
       source: { documentId: document!.id, page: 1, quote: "Movimento: caminhada leve por 15 minutos, se estiver confortável. Interromper e pedir apoio se houver dificuldade." },
-      questions: [], confirmed: true, schedule: { times: ["16:00"], priority: "normal", toleranceMinutes: 30 },
+      questions: [], confirmed: true, schedule: { times: ["16:00"], priority: "normal", toleranceMinutes: 30, period: { startDate, endDate: null }, recurrence: { kind: "daily" } },
     },
   ] : [];
   const state: StoredState = {

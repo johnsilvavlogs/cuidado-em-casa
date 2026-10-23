@@ -268,7 +268,7 @@ async function expectInstructionStatus(page: Page, target: { title: string; time
 
 function observeActions(page: Page) {
   const actions: ActionBody[] = [];
-  page.on("request", (request) => { if (request.url().endsWith("/api/actions") && request.method() === "POST") actions.push(request.postDataJSON() as ActionBody); });
+  page.on("request", (request) => { if (request.url().endsWith("/api/actions") && request.method() === "POST") actions.push(request.postDataJSON().action as ActionBody); });
   return actions;
 }
 
@@ -576,7 +576,7 @@ test("real-live-webrtc-continuous-request-then-confirmed-walk", async ({ page, b
   let recoveryEvidence: unknown = null;
   try {
     for (const task of initial.tasks.filter((entry) => entry.id !== walk.id)) {
-      const seeded = await page.request.post("/api/actions", { data: { type: "record_task", taskId: task.id, status: "done", requestId: randomUUID() }, headers: { Origin: base } });
+      const seeded = await page.request.post("/api/actions", { data: { context: { demoId: initial.demoId, role: initial.role }, action: { type: "record_task", taskId: task.id, status: "done", requestId: randomUUID() } }, headers: { Origin: base } });
       expect(seeded.status()).toBe(200);
     }
     await page.reload();

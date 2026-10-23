@@ -253,7 +253,7 @@ for (const display of displays) {
       }, async () => { await open(); return [check("saved choices restored", "true", await page.getByRole("button", { name: "Mais ou menos", exact: true }).getAttribute("aria-pressed")), check("same report after reload", reportId, (await state(context)).checkIns[0].id)]; });
       await close(page);
       const otherAuthor = await start(browser, display, "caregiver", "ready", (await state(context)).demoId);
-      const otherSaved = await otherAuthor.context.request.post("/api/actions", { data: { type: "check_in", sleepMinutes: null, sleepQuality: null, food: "yes", mood: "good", requestId: randomUUID() }, headers: { Origin: base } });
+      const otherSaved = await otherAuthor.context.request.post("/api/actions", { data: { context: { demoId: (await state(otherAuthor.context)).demoId, role: "caregiver" }, action: { type: "check_in", sleepMinutes: null, sleepQuality: null, food: "yes", mood: "good", requestId: randomUUID() } }, headers: { Origin: base } });
       expect(otherSaved.status()).toBe(200);
       const otherReport = (await state(otherAuthor.context)).checkIns.find(entry => entry.author === "caregiver")!;
       await otherAuthor.context.close();
