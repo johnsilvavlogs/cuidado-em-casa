@@ -84,3 +84,13 @@ dialog{border:0;border-radius:20px;background:var(--white);padding:36px;color:#2
 .voice-words>.voice-confirmation{max-width:42ch}
 .voice-confirmation strong{font-weight:500}
 .voice-words>.tech-note{padding-top:20px;border-top:1px solid rgba(231,242,233,.2)}
+
+/* Keep app testing primary, with the demo video as a separate, visible action. */
+.hero-actions{display:flex;flex-direction:column;align-items:flex-start;gap:12px;margin-top:27px}
+.hero-actions .primary-cta{margin-top:0}
+.demo-cta{width:333px;max-width:100%;min-height:56px;padding:13px 23px;border:1px solid rgba(16,84,48,.24);border-radius:16px;background:rgba(255,254,250,.82);color:#164c34;font-size:19px;line-height:1.2;gap:14px;white-space:nowrap;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.demo-cta svg{width:22px;height:22px}
+.demo-cta:hover{background:#fffefa;color:#075e33}
+@media(max-width:1000px){.hero-actions{margin-top:26px}.demo-cta{min-height:52px}.hero{height:1192px}.room{top:529px}.preview{top:568px}}
+@media(max-width:600px){.hero-actions{margin-top:24px}.demo-cta{width:300px;font-size:18px;padding-inline:21px}.hero{height:1224px}.hero-copy{height:434px}.room{top:564px}.preview{top:578px}}
+@media(prefers-reduced-transparency:reduce),(prefers-contrast:more){.demo-cta{background:#fffefa;-webkit-backdrop-filter:none;backdrop-filter:none;border-color:#44725a}}
