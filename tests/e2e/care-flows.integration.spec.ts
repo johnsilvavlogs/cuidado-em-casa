@@ -83,13 +83,13 @@ for (const display of displays) {
     try {
       const pending = initial.tasks.find((task) => task.status === "pending")!;
       const before = await readState(caregiver);
-      await page.locator('[data-parity-anchor="next-care"]').getByRole("button", { name: "Registrar como feito", exact: true }).click();
+      await page.locator('[data-parity-anchor="next-care"]').getByRole("button", { name: "Já fiz", exact: true }).click();
       await expect(page.getByRole("alert").filter({ hasText: "Falha de gravação controlada" })).toBeVisible();
       expect(requests).toHaveLength(1);
       const failed = await readState(caregiver);
       expect(failed.revision).toBe(before.revision);
       expect(failed.tasks.find((task) => task.id === pending.id)?.status).toBe("pending");
-      await saveClick(page, page.getByRole("button", { name: "Tentar novamente", exact: true }));
+      await saveClick(page, page.getByRole("button", { name: "Tentar de novo", exact: true }));
       expect(requests).toHaveLength(2);
       expect(requests[1]).toEqual(requests[0]);
       const final = await readState(caregiver);
@@ -129,7 +129,7 @@ for (const display of displays) {
     await keyboardReach(page, today);
     await page.keyboard.press("Enter");
     await expect(page.getByRole("button", { name: "Falar com assistente", exact: true })).toBeVisible();
-    const source = page.locator('[data-parity-anchor="next-care"]').getByRole("button", { name: "Ver orientação do plano", exact: true });
+    const source = page.locator('[data-parity-anchor="next-care"]').getByRole("button", { name: "Ver orientação", exact: true });
     await keyboardReach(page, source);
     await page.keyboard.press("Enter");
     await expect(page.getByRole("dialog")).toBeVisible();
@@ -147,7 +147,7 @@ for (const display of displays) {
       await page.locator(".routine-more > summary").click();
       await page.locator(".compact-task").first().click();
       await page.getByRole("dialog").getByRole("button", { name: "Pedir ajuda", exact: true }).click();
-      await page.getByLabel("Como podemos ajudar?", { exact: true }).fill("Preciso de ajuda para organizar este cuidado.");
+      await page.getByLabel("De que ajuda você precisa?", { exact: true }).fill("Preciso de ajuda para organizar este cuidado.");
       await saveClick(page, page.getByRole("button", { name: "Enviar pedido de ajuda", exact: true }));
       let current = await readState(caregiver);
       const normal = current.helpRequests.find((help) => !help.urgent)!;
@@ -157,7 +157,7 @@ for (const display of displays) {
       await carePage.goto(`/?demo=${initial.demoId}&role=caregiver`);
       await carePage.getByRole("button", { name: "Ver relato", exact: true }).click();
       const normalCard = carePage.locator(".help-item").filter({ hasText: normal.message });
-      await saveClick(carePage, normalCard.getByRole("button", { name: "Ajuda resolvida", exact: true }));
+      await saveClick(carePage, normalCard.getByRole("button", { name: "Marcar como resolvido", exact: true }));
       current = await readState(caregiver);
       expect(current.helpRequests.find((help) => help.id === normal.id)?.status).toBe("resolved");
       expect(current.tasks.find((task) => task.id === firstTask.id)?.status).toBe("pending");
@@ -165,7 +165,7 @@ for (const display of displays) {
 
       await page.getByRole("button", { name: "Ajuda urgente", exact: true }).click();
       await expect(page.getByRole("link", { name: "Ligar para o SAMU · 192", exact: true })).toHaveAttribute("href", "tel:192");
-      await saveClick(page, page.getByRole("button", { name: "Avisar meu cuidador agora", exact: true }));
+      await saveClick(page, page.getByRole("button", { name: "Enviar pedido urgente", exact: true }));
       await expect(page.getByRole("button", { name: "Pedido urgente salvo", exact: true })).toBeDisabled();
       current = await readState(caregiver);
       const urgent = current.helpRequests.find((help) => help.urgent)!;
@@ -174,7 +174,7 @@ for (const display of displays) {
       await carePage.reload();
       await carePage.getByRole("button", { name: "Ver relato", exact: true }).click();
       const urgentCard = carePage.locator(".help-item").filter({ hasText: urgent.message });
-      await saveClick(carePage, urgentCard.getByRole("button", { name: "Ajuda resolvida", exact: true }));
+      await saveClick(carePage, urgentCard.getByRole("button", { name: "Marcar como resolvido", exact: true }));
       const final = await readState(caregiver);
       expect(final.helpRequests.find((help) => help.id === urgent.id)?.status).toBe("resolved");
       expect(final.helpRequests.find((help) => help.id === normal.id)?.status).toBe("resolved");
@@ -196,6 +196,7 @@ for (const display of displays) {
       expect(requests).toHaveLength(0);
       await page.getByRole("button", { name: "Informar como estou", exact: true }).click();
       const today = await page.locator('input[type="date"]').inputValue();
+      await page.getByRole("button", { name: "Outro tempo", exact: true }).click();
       await page.getByLabel("Horas", { exact: true }).fill("6");
       await page.getByLabel("Minutos", { exact: true }).fill("20");
       await page.getByRole("button", { name: "Pouco", exact: true }).click();
@@ -214,6 +215,7 @@ for (const display of displays) {
       const yesterday = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(priorDate);
       await page.getByRole("button", { name: "Atualizar relato", exact: true }).click();
       await page.locator('input[type="date"]').fill(yesterday);
+      await page.getByRole("button", { name: "Outro tempo", exact: true }).click();
       await expect(page.getByLabel("Horas", { exact: true })).toHaveValue("");
       await page.getByLabel("Horas", { exact: true }).fill("7");
       await page.getByLabel("Minutos", { exact: true }).fill("0");

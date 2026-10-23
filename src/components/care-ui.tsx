@@ -34,12 +34,12 @@ export const dateLabel = (date: string) => new Date(date).toLocaleDateString("pt
 export const todayString = () => new Date().toLocaleDateString("en-CA");
 export const roleLabel = (state: CareState) => state.role === "patient" ? state.patient.name : state.patient.caregiverName;
 export const sleepLabel = (minutes: number | null) => minutes === null ? "Sono não informado" : `${Math.floor(minutes / 60)}h${String(minutes % 60).padStart(2, "0")}`;
-export const foodLabels = { yes: "Conseguiu se alimentar", partial: "Alimentou-se em parte", no: "Ainda não se alimentou" };
-export const moodLabels = { good: "Sentindo-se bem", okay: "Sentindo-se mais ou menos", bad: "Não está se sentindo bem" };
-export const sleepQualityLabels = { low: "Relatou pouco sono", okay: "Relatou sono suficiente", high: "Relatou muito sono" };
+export const foodLabels = { yes: "Alimentou-se", partial: "Comeu um pouco", no: "Ainda não se alimentou" };
+export const moodLabels = { good: "Está bem", okay: "Está mais ou menos", bad: "Não está bem" };
+export const sleepQualityLabels = { low: "Dormiu pouco", okay: "Sono suficiente", high: "Dormiu muito" };
 export const categoryLabels = { medication: "Medicamento", activity: "Atividade", nutrition: "Alimentação", other: "Outro cuidado" };
-export const fieldLabels: Record<string, string> = { nome: "Nome", concentracao: "Concentração", via: "Via", frequencia: "Frequência", duracao: "Duração", condicoes: "Condições", horario: "Horário na fonte", inicio: "Início", local: "Local", lateralidade: "Lateralidade", retorno: "Retorno", name: "Nome", medication: "Medicamento", concentration: "Concentração", dose: "Dose", route: "Via", frequency: "Frequência", duration: "Duração", conditions: "Condições", schedule: "Horário na fonte", time: "Horário na fonte", quantity: "Quantidade", notes: "Observações" };
-export const readingLabels = { readable: "Legível", missing: "Não consta na fonte", ambiguous: "Leitura ambígua", illegible: "Ilegível" };
+export const fieldLabels: Record<string, string> = { nome: "Nome", concentracao: "Concentração", via: "Como tomar", frequencia: "Quantas vezes", duracao: "Duração", condicoes: "Cuidados ao usar", horario: "Horário na fonte", inicio: "Início", local: "Local", lateralidade: "Lado do corpo", retorno: "Retorno", name: "Nome", medication: "Medicamento", concentration: "Concentração", dose: "Dose", route: "Como tomar", frequency: "Quantas vezes", duration: "Duração", conditions: "Cuidados ao usar", schedule: "Horário na fonte", time: "Horário na fonte", quantity: "Quantidade", notes: "Observações" };
+export const readingLabels = { readable: "Legível", missing: "Não consta na fonte", ambiguous: "Trecho com dúvida", illegible: "Ilegível" };
 
 export function Brand() {
   return <div className="brand"><HandHeartIcon size={33} weight="regular" aria-hidden="true" /><span>Cuidado em Casa</span></div>;
@@ -68,7 +68,7 @@ export function Modal({ title, subtitle, children, onClose, wide = false, varian
     {headerContent}
     <div className="modal-header" data-parity-anchor="heading-group"><div>{headingContent ? <><h2 id={id} data-parity-anchor="heading-type">{title}</h2>{headingContent}</> : <><h2 id={id} data-parity-anchor="heading-type">{title}</h2>{subtitle && <p className="muted">{subtitle}</p>}</>}</div><button className="icon-button" aria-label="Fechar" onClick={onClose}><XIcon size={24} /></button></div>
     {hasCurrentAction && (feedback.busy || feedback.notice) && <p className="modal-feedback" role="status" aria-live="polite">{feedback.busy ? <Busy>{feedback.busy}</Busy> : feedback.notice}</p>}
-    {hasCurrentAction && error && <div className="error-message modal-error" role="alert"><p>{error.message}</p><button className="button secondary compact" onClick={() => void error.retry()}>Tentar novamente</button></div>}
+    {hasCurrentAction && error && <div className="error-message modal-error" role="alert"><p>{error.message}</p><button className="button secondary compact" onClick={() => void error.retry()}>Tentar de novo</button></div>}
     {children}
   </dialog>;
 }

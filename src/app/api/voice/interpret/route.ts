@@ -7,14 +7,14 @@ import { assertSessionContext, isCareError, parseSessionContext } from "@/lib/se
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const invalidInput = () => Response.json({ error: "Não foi possível interpretar essa fala. Use até 6 mil caracteres e tente novamente." }, { status: 400, headers: privateHeaders });
+const invalidInput = () => Response.json({ error: "Não entendi o relato. Tente dizer uma coisa de cada vez." }, { status: 400, headers: privateHeaders });
 
 export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
     const state = await getSessionState();
     if (state.role !== "patient" || state.plan.status !== "active") {
-      return Response.json({ error: "A voz fica disponível para a pessoa cuidada depois de ativar o plano." }, { status: 403, headers: privateHeaders });
+      return Response.json({ error: "Ative o plano para a pessoa cuidada usar a voz." }, { status: 403, headers: privateHeaders });
     }
     if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json") || Number(request.headers.get("content-length") || 0) > 60_000) return invalidInput();
     const body = await request.text();
@@ -32,6 +32,6 @@ export async function POST(request: Request) {
     if (isCareError(error) && (error.status === 400 || error.status === 409)) return errorResponse(error);
     const status = typeof error === "object" && error && "status" in error ? Number(error.status) : null;
     if (status === 401 || status === 403) return Response.json({ error: "Entre como pessoa cuidada para usar a voz neste acompanhamento." }, { status: 403, headers: privateHeaders });
-    return Response.json({ error: "Não foi possível interpretar a fala agora. Seus registros estão preservados; use os botões ou tente novamente." }, { status: 503, headers: privateHeaders });
+    return Response.json({ error: "Não entendi o relato agora. Tente de novo ou use os botões." }, { status: 503, headers: privateHeaders });
   }
 }

@@ -22,14 +22,14 @@ test("a new modal owns only feedback from actions started after opening", async 
     await saveReady;
     await route.fulfill({ status: 422, json: { error: "Falha de teste ao salvar o pedido." } });
   }, { times: 1 });
-  await dialog.getByRole("button", { name: "Avisar meu cuidador agora", exact: true }).click();
+  await dialog.getByRole("button", { name: "Enviar pedido urgente", exact: true }).click();
   await expect(dialog.locator(".modal-feedback")).toHaveText("Salvando…");
   rejectSave();
   await expect(dialog.getByRole("alert")).toContainText("Falha de teste ao salvar o pedido.");
-  await expect(dialog.getByRole("button", { name: "Avisar meu cuidador agora", exact: true })).toBeEnabled();
+  await expect(dialog.getByRole("button", { name: "Enviar pedido urgente", exact: true })).toBeEnabled();
 
-  await dialog.getByRole("button", { name: "Avisar meu cuidador agora", exact: true }).click();
-  await expect(dialog.locator(".modal-feedback")).toHaveText("Pedido urgente salvo e destacado para seu cuidador.");
+  await dialog.getByRole("button", { name: "Enviar pedido urgente", exact: true }).click();
+  await expect(dialog.locator(".modal-feedback")).toHaveText("Pedido urgente salvo.");
   await expect(dialog.getByRole("alert")).toHaveCount(0);
   await expect(dialog.getByRole("button", { name: "Pedido urgente salvo", exact: true })).toBeDisabled();
   await dialog.getByRole("button", { name: "Fechar", exact: true }).click();

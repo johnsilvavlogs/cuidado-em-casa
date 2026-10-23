@@ -16,6 +16,21 @@ const SESSION_LIFETIME_MS = 24 * 60 * 60 * 1_000;
 const MAX_FILE_BYTES = 15 * 1024 * 1024;
 const LOGIN_WINDOW_MS = 15 * 60 * 1_000;
 const MAX_LOGIN_ATTEMPTS = 10;
+const SQLITE_BUSY_TIMEOUT_MS = 1_000;
+const SQLITE_ACQUIRE_LIMIT_MS = 5_000;
+// Next route bundles and separate repository instances share one in-process queue per file.
+const localQueues = (globalThis as typeof globalThis & { careSqliteQueues?: Map<string, Promise<void>> }).careSqliteQueues ??= new Map<string, Promise<void>>();
+
+async function acquireWhenAvailable<T>(operation: () => Promise<T>): Promise<T> {
+  const deadline = Date.now() + SQLITE_ACQUIRE_LIMIT_MS;
+  for (;;) {
+    try { return await operation(); }
+    catch (error) {
+      if (!(error && typeof error === "object" && "code" in error && error.code === "SQLITE_BUSY") || Date.now() >= deadline) throw error;
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
+  }
+}
 type Session = { caseId: string; role: Role; state: StoredState; account?: CareState["account"] };
 type DocumentInput = { name: string; mimeType: string; bytes: Uint8Array };
 type SqlExecutor = Pick<Client, "execute"> | Pick<Transaction, "execute">;
@@ -48,7 +63,7 @@ export class CareRepository {
   private readonly clock: () => Date;
 
   constructor(options: { dataDir?: string; now?: () => Date } = {}) {
-    this.directory = options.dataDir ?? path.join(process.cwd(), ".data");
+    this.directory = path.resolve(options.dataDir ?? path.join(process.cwd(), ".data"));
     this.clock = options.now ?? (() => new Date());
   }
 
@@ -57,8 +72,10 @@ export class CareRepository {
       await mkdir(this.directory, { recursive: true, mode: 0o700 });
       await chmod(this.directory, 0o700);
       const databasePath = path.join(this.directory, "care.sqlite");
-      const client = createClient({ url: pathToFileURL(databasePath).href });
-      await client.executeMultiple(`
+      const client = createClient({ url: pathToFileURL(databasePath).href, concurrency: 1, timeout: SQLITE_BUSY_TIMEOUT_MS });
+      try {
+      await acquireWhenAvailable(() => client.executeMultiple(`
+        PRAGMA journal_mode = WAL;
         PRAGMA foreign_keys = ON;
         CREATE TABLE IF NOT EXISTS care_cases (id TEXT PRIMARY KEY, state_json TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS demo_sessions (token_hash TEXT PRIMARY KEY, case_id TEXT NOT NULL REFERENCES care_cases(id), role TEXT NOT NULL CHECK(role IN ('patient', 'caregiver')), expires_at TEXT NOT NULL);
@@ -72,28 +89,60 @@ export class CareRepository {
         CREATE INDEX IF NOT EXISTS session_case ON demo_sessions(case_id);
         CREATE INDEX IF NOT EXISTS document_case ON documents(case_id);
         CREATE INDEX IF NOT EXISTS audit_case ON audit_events(case_id, created_at);
-      `);
+      `));
       await chmod(databasePath, 0o600);
       return client;
-    })();
+      } catch (error) { client.close(); throw error; }
+    })().catch(error => {
+      // A transient lock during startup must not poison every later request.
+      this.clientPromise = undefined;
+      throw error;
+    });
     return this.clientPromise;
   }
 
-  private async transaction<T>(work: (transaction: Transaction) => Promise<T>): Promise<T> {
-    const previous = this.queue;
+  private async serialized<T>(work: () => Promise<T>): Promise<T> {
+    const key = path.join(this.directory, "care.sqlite");
+    const previous = localQueues.get(key) ?? Promise.resolve();
     let release!: () => void;
-    this.queue = new Promise<void>((resolve) => { release = resolve; });
+    const pending = new Promise<void>(resolve => { release = resolve; });
+    localQueues.set(key, pending);
+    this.queue = pending;
     await previous;
-    let transaction: Transaction | undefined;
-    try {
-      transaction = await (await this.database()).transaction("write");
-      const result = await work(transaction);
-      await transaction.commit();
-      return result;
-    } finally {
-      transaction?.close();
+    try { return await work(); }
+    finally {
       release();
+      if (localQueues.get(key) === pending) localQueues.delete(key);
     }
+  }
+
+  private async transaction<T>(work: (transaction: Transaction) => Promise<T>): Promise<T> {
+    return this.serialized(async () => {
+      const client = await this.database();
+      // Only BEGIN acquisition is retried. The callback and COMMIT are never replayed.
+      const transaction = await acquireWhenAvailable(() => client.transaction("write"));
+      try {
+        const result = await work(transaction);
+        try { await transaction.commit(); }
+        catch (error) {
+          // Roll back before closing a native handle: close alone can leave an
+          // active transaction locked while outstanding statements retain it.
+          try { if (!transaction.closed) await transaction.rollback(); } catch { /* preserve the commit error */ }
+          try { transaction.close(); } catch { /* the client is discarded below */ }
+          client.close();
+          this.clientPromise = undefined;
+          throw error;
+        }
+        return result;
+      } finally {
+        try { transaction.close(); }
+        catch (error) {
+          client.close();
+          this.clientPromise = undefined;
+          throw error;
+        }
+      }
+    });
   }
 
   private async session(executor: SqlExecutor, token: string | undefined): Promise<Session> {
@@ -188,7 +237,7 @@ export class CareRepository {
       return true;
     });
     if (!allowed) throw new CareError("Muitas tentativas. Aguarde 15 minutos antes de tentar novamente.", 429);
-    const result = await (await this.database()).execute({ sql: "SELECT id, password_salt, password_hash FROM accounts WHERE email = ?", args: [email] });
+    const result = await this.serialized(async () => (await this.database()).execute({ sql: "SELECT id, password_salt, password_hash FROM accounts WHERE email = ?", args: [email] }));
     const account = result.rows[0];
     const valid = await verifyPassword(password, account ? String(account.password_salt) : undefined, account ? String(account.password_hash) : undefined);
     if (!valid || !account) throw new CareError("E-mail ou senha inválidos.", 401);
@@ -211,6 +260,13 @@ export class CareRepository {
   }
 
   async getState(token: string | undefined, expected?: CareSessionContext): Promise<CareState> {
+    const snapshot = await this.serialized(async () => {
+      const session = await this.boundSession(await this.database(), token, expected);
+      const now = this.clock();
+      return { ...session, now, needsTasks: ensureTodayTasks(session.state, now) };
+    });
+    if (!snapshot.needsTasks) return publicState(snapshot.state, snapshot.role, snapshot.now, snapshot.account);
+    // Materialize a new day's tasks under a write lock, rereading after acquisition.
     return this.transaction(async (transaction) => {
       const { state, role, account } = await this.boundSession(transaction, token, expected);
       const now = this.clock();
@@ -299,10 +355,12 @@ export class CareRepository {
 
   async getDocument(token: string | undefined, id: string): Promise<{ reference: DocumentRef; bytes: Uint8Array }> {
     if (!/^[0-9a-f-]{36}$/i.test(id)) throw new CareError("Documento não encontrado.", 404);
-    const client = await this.database();
-    const { caseId } = await this.session(client, token);
-    const result = await client.execute({ sql: "SELECT id, name, mime_type, file_name, page_count, sha256 FROM documents WHERE id = ? AND case_id = ?", args: [id, caseId] });
-    const row = result.rows[0];
+    const row = await this.serialized(async () => {
+      const client = await this.database();
+      const { caseId } = await this.session(client, token);
+      const result = await client.execute({ sql: "SELECT id, name, mime_type, file_name, page_count, sha256 FROM documents WHERE id = ? AND case_id = ?", args: [id, caseId] });
+      return result.rows[0];
+    });
     if (!row) throw new CareError("Documento não encontrado neste cuidado.", 404);
     const bytes = await readFile(path.join(this.directory, "documents", String(row.file_name)));
     if (hash(bytes) !== row.sha256) throw new CareError("O original não passou na verificação de integridade. Envie o arquivo novamente.", 409);

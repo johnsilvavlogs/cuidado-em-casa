@@ -4,6 +4,7 @@ import { z } from "zod";
 import { isCalendarDate, scheduledOnDate, validPeriod, periodLabel, hasReviewedSchedule, validRecurrence, recurrenceLabel } from "../schedule-period";
 import type { CareAction, CareSessionContext, CareState, DraftItem, ExtractionResult, Role, TaskOccurrence } from "../contracts";
 import { batchConfirmationBlocker, itemConfirmationBlockers } from "../contracts";
+import { sleepDurationLabel } from "../sleep-duration";
 
 export class CareError extends Error {
   constructor(message: string, public readonly status = 400) {
@@ -74,7 +75,7 @@ const actionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("record_task"), taskId: id, status: z.enum(["done", "not_done"]), informedAt: z.string().datetime({ offset: true }).optional(), requestId }).strict(),
   z.object({ type: z.literal("request_help"), taskId: id.nullable().optional(), message: z.string().trim().max(2_000), urgent: z.boolean(), requestId }).strict(),
   z.object({ type: z.literal("resolve_help"), helpId: id, requestId }).strict(),
-  z.object({ type: z.literal("check_in"), id: id.optional(), referenceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), sleepMinutes: z.number().int().min(0).max(24 * 60).nullable(), sleepQuality: z.enum(["low", "okay", "high"]).nullable().default(null), food: z.enum(["yes", "partial", "no"]).nullable(), mood: z.enum(["good", "okay", "bad"]).nullable(), requestId }).strict(),
+  z.object({ type: z.literal("check_in"), id: id.optional(), referenceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), sleepMinutes: z.number().int().min(0).max(24 * 60).nullable(), sleepRange: z.enum(["under4", "around6", "8plus"]).nullable().optional(), sleepQuality: z.enum(["low", "okay", "high"]).nullable().default(null), food: z.enum(["yes", "partial", "no"]).nullable(), mood: z.enum(["good", "okay", "bad"]).nullable(), requestId }).strict().refine((entry) => entry.sleepRange == null || entry.sleepMinutes === null, "Informe uma faixa de sono ou os minutos exatos, sem combinar os dois."),
   z.object({ type: z.literal("update_item"), itemId: id, title: text(200), instruction: text(8_000), fields: fieldsSchema, questions: questionsSchema, schedule: scheduleSchema.optional(), requestId }).strict(),
   z.object({ type: z.literal("add_item"), item: itemSchema, requestId }).strict(),
   z.object({ type: z.literal("confirm_item_schedule"), itemId: id, schedule: scheduleSchema, requestId }).strict(),
@@ -213,14 +214,15 @@ export function applyAction(state: StoredState, role: Role, action: CareAction, 
       requireActive(state);
       const referenceDate = action.referenceDate ?? dateInBrazil(now);
       assertReferenceDate(referenceDate, now);
-      if (action.sleepMinutes === null && action.sleepQuality === null && action.food === null && action.mood === null) throw new CareError("Informe ao menos um relato ou use Pular.");
+      if (action.sleepMinutes === null && !action.sleepRange && action.sleepQuality === null && action.food === null && action.mood === null) throw new CareError("Informe ao menos um relato ou use Pular.");
       const existing = action.id ? state.checkIns.find((entry) => entry.id === action.id) : undefined;
       if (action.id && !existing) throw new CareError("Relato não encontrado neste cuidado.", 404);
       if (existing && existing.author !== role) throw new CareError("Somente o autor pode corrigir este relato.", 403);
-      const record = { id: existing?.id ?? randomUUID(), sleepMinutes: action.sleepMinutes, sleepQuality: action.sleepQuality, food: action.food, mood: action.mood, referenceDate, createdAt: existing?.createdAt ?? at, updatedAt: at, author: role };
+      const record = { id: existing?.id ?? randomUUID(), sleepMinutes: action.sleepMinutes, sleepRange: action.sleepRange ?? null, sleepQuality: action.sleepQuality, food: action.food, mood: action.mood, referenceDate, createdAt: existing?.createdAt ?? at, updatedAt: at, author: role };
       if (existing) Object.assign(existing, record);
       else state.checkIns.unshift(record);
-      appendEvent(state, role, at, `${actor} ${existing ? "corrigiu" : "salvou"} um relato opcional de ${referenceDate}${action.sleepMinutes === null ? "; sono não informado" : `; sono informado: ${Math.floor(action.sleepMinutes / 60)}h${String(action.sleepMinutes % 60).padStart(2, "0")}`}.`);
+      const duration = sleepDurationLabel(record);
+      appendEvent(state, role, at, `${actor} ${existing ? "corrigiu" : "salvou"} um relato opcional de ${referenceDate}${duration === null ? "; sono não informado" : `; sono informado: ${duration}`}.`);
       return;
     }
     case "confirm_item_schedule": {

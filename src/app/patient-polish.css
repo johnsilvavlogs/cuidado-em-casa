@@ -1,0 +1,177 @@
+/* Mobile-only presentation. Keep the existing care and voice actions unchanged. */
+.mobile-date-notice, .attention-action-arrow { display: none; }
+
+@media (max-width: 720px) {
+  .caregiver-view .caregiver-wellbeing { height: auto; min-height: 186px; }
+  .caregiver-view .caregiver-progress { position: static; display: flex; min-height: 0; margin: 14px 0 0; }
+  .caregiver-view .sleep-attention-note { padding-left: 0; margin-top: 8px; font-size: 13px; line-height: 18px; }
+
+  .caregiver-view .attention-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    align-items: center;
+    gap: 8px;
+    height: auto;
+    min-height: 78px;
+    padding: 12px 10px 12px 14px;
+    border-radius: 28px;
+  }
+  .caregiver-view .attention-card .card-heading { align-items: center; gap: 10px; min-width: 0; }
+  .caregiver-view .attention-card .card-heading > div { min-width: 0; }
+  .caregiver-view .attention-card .icon-disc { width: 34px; height: 34px; }
+  .caregiver-view .attention-card .icon-disc > svg { width: 23px; height: 23px; }
+  .caregiver-view .attention-card h2 { font-size: 16px; line-height: 22px; letter-spacing: -.2px; }
+  .caregiver-view .attention-card .attention-task-name { margin-top: 2px; font-size: 14px; line-height: 20px; font-weight: 500; }
+  .caregiver-view .attention-card .card-heading p { display: none; }
+  .caregiver-view .attention-card > .button {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    margin: 0;
+    padding: 10px;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: #976021;
+  }
+  .attention-action-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .attention-action-arrow { display: block; }
+  .caregiver-view .attention-card.is-clear > .button { color: var(--green); }
+
+  .daily-view > .desktop-date-notice { display: none; }
+  .daily-view > .mobile-date-notice {
+    display: block;
+    margin: 0 0 16px;
+    border: 1px solid #e2e6d8;
+    border-radius: 23px;
+    background: #f6f8ef;
+    color: #476249;
+  }
+  .mobile-date-notice > summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 46px;
+    padding: 8px 12px;
+    list-style: none;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 550;
+    line-height: 21px;
+  }
+  .mobile-date-notice > summary::-webkit-details-marker { display: none; }
+  .mobile-date-notice > summary > svg { flex-shrink: 0; }
+  .mobile-date-notice > summary > svg:last-child { margin-left: auto; }
+  .mobile-date-notice[open] > summary > svg:last-child { transform: rotate(180deg); }
+  .mobile-date-notice > summary:focus-visible {
+    outline: 3px solid #176d57;
+    outline-offset: 3px;
+    border-radius: 22px;
+  }
+  .plan-dates-count {
+    display: inline-grid;
+    place-items: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 5px;
+    border-radius: 12px;
+    background: #e4ebda;
+    font-size: 15px;
+    line-height: 20px;
+  }
+  .plan-dates-details { padding: 0 14px 10px; }
+  .plan-dates-details > p { font-size: 15px; line-height: 22px; }
+  .plan-dates-details > p + p { margin-top: 6px; }
+  .plan-dates-details > .text-button { min-height: 44px; font-size: 15px; }
+  .caregiver-view .caregiver-help-empty {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px;
+    border-radius: 28px;
+    background: #f8faf5;
+  }
+  .caregiver-view .caregiver-help-empty > div { min-width: 0; gap: 6px; font-size: 15px; line-height: 20px; }
+  .caregiver-view .caregiver-help-empty > div > svg { width: 18px; height: 18px; flex-shrink: 0; }
+  .caregiver-view .caregiver-help-empty .text-button {
+    align-self: auto;
+    min-height: 44px;
+    margin-top: 0;
+    padding: 8px 4px;
+    font-size: 15px;
+  }
+  .patient-view .voice-launch {
+    color: #145949;
+    background: #e6f2e9;
+    border: 1px solid #d0e4d7;
+    border-radius: 14px;
+    box-shadow: none;
+  }
+  .patient-view .voice-launch:hover:not(:disabled) { background: #daeade; }
+  .patient-view .voice-launch:focus-visible { outline-color: #176d57; }
+  .patient-view .primary-task {
+    min-height: 224px;
+    padding: 18px 16px 12px;
+    border-color: #d6e5d6;
+    border-radius: 22px;
+    background: linear-gradient(145deg, #f7fbf4, #fffefa);
+    box-shadow: 0 4px 18px #274a3410;
+  }
+  .patient-view .task-top { gap: 12px; }
+  .patient-view .task-top > svg { color: #4d7d61; }
+  .patient-view .task-kicker { color: #5b7464; }
+  .patient-view .task-top h2 {
+    font-size: 25px;
+    line-height: 31px;
+    letter-spacing: -.6px;
+    color: #143b2c;
+  }
+  .patient-view .source-button { color: #3d705b; }
+  .patient-view .primary-task > .task-actions { gap: 9px; padding-top: 12px; }
+  .patient-view .primary-task > .task-actions > .button {
+    min-height: 48px;
+    height: auto;
+    border-radius: 12px;
+  }
+  .patient-view .primary-task > .task-actions > .button.secondary {
+    background: transparent;
+    border-color: #abc9b5;
+  }
+  .patient-view .wellbeing-card {
+    height: auto;
+    min-height: 184px;
+    padding: 16px;
+    border-radius: 20px;
+    border-color: #e0e8da;
+  }
+  .patient-view .wellbeing-card > .full-width {
+    min-height: 44px;
+    margin-top: 4px;
+    font-size: 15px;
+  }
+  .patient-view .wellbeing-row small { color: #64756a; }
+  .patient-view .completed-day {
+    border-color: #d6e5d6;
+    border-radius: 22px;
+    background: #f3f8ee;
+  }
+  .patient-view .urgent-access { border-radius: 13px; }
+  .voice-panel .voice-description { color: #586f63; }
+  .voice-panel .voice-status { color: #4c6559; font-size: 13px; }
+  .voice-panel .voice-examples > p {
+    color: #64766a;
+    font-size: 14px;
+    line-height: 21px;
+    letter-spacing: 0;
+  }
+  .voice-panel .voice-example { font-size: 16px; line-height: 23px; }
+  .voice-panel .voice-record-heading small { font-size: 11px; }
+  .voice-panel .voice-privacy { color: #64786a; font-size: 12px; line-height: 18px; }
+}
+
+.checkin .sleep-card { height: auto; min-height: 0; gap: 12px; }
+.sleep-duration-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.sleep-duration-choices > button { min-height: 52px; padding: 10px 12px; border: 1px solid #d3dfca; border-radius: 14px; background: white; color: #405f49; font-size: 16px; line-height: 22px; text-align: center; }
+.sleep-duration-choices > button.selected { background: #006b5b; color: white; border-color: #006b5b; }
+.sleep-duration-choices > button:focus-visible { outline: 3px solid #176d57; outline-offset: 3px; }
+.sleep-duration-choices > button:hover:not(.selected) { background: #f1f6ec; }

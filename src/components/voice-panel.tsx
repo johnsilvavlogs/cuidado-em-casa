@@ -15,6 +15,8 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
   const [transcript, setTranscript] = useState("");
   const [pending, setPending] = useState<VoiceCommand | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
+  const saveRequest = useRef<{ decisionId: string; body: string } | null>(null);
   const [saved, setSaved] = useState(false);
   const [savedCommand, setSavedCommand] = useState<VoiceCommand | null>(null);
   const [muted, setMuted] = useState(false);
@@ -78,11 +80,11 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
     const thisAttempt = attempt.current;
     const context: CareSessionContext = { demoId: latestState.current.demoId, role: latestState.current.role };
     pendingSubmission.current = null;
-    setError(""); setSaved(false); savedRef.current = false; setTranscript(""); setInterpreting(false); setStatus("connecting"); sessionReady.current = false;
+    setError(""); setSaveFailed(false); saveRequest.current = null; setSaved(false); savedRef.current = false; setTranscript(""); setInterpreting(false); setStatus("connecting"); sessionReady.current = false;
     latestTranscript.current = { id: "", receivedAt: 0 }; dismissedTranscript.current = "";
     acceptedDecisions.current.clear();
     try {
-      if (!navigator.mediaDevices?.getUserMedia) throw new Error("O microfone não está disponível neste navegador. Use os botões da rotina.");
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error("O microfone não está disponível neste navegador.");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       if (attempt.current !== thisAttempt) { stream.getTracks().forEach(track => track.stop()); return; }
       microphone.current = stream;
@@ -96,13 +98,13 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
         }
       };
       pc.onconnectionstatechange = () => {
-        if (pc.connectionState === "failed") { stop(); setStatus("error"); setError("A conexão de voz caiu. Seus registros foram preservados; tente conectar novamente."); }
+        if (pc.connectionState === "failed") { stop(); setStatus("error"); setError("A conexão de voz caiu."); }
       };
       const dc = pc.createDataChannel("oai-events"); channel.current = dc;
       function prepareSubmission(proposed: VoiceCommand): CareAction | null {
         const current = latestState.current;
         if (current.demoId !== context.demoId || current.role !== context.role) {
-          stop(); setStatus("error"); setError("A sessão mudou. Feche a voz e atualize a página antes de continuar.");
+          stop(); setStatus("error"); setError("O acompanhamento mudou. Feche esta tela e atualize a página.");
           return null;
         }
         const action = confirmedVoiceAction(proposed, current);
@@ -119,7 +121,7 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
         try {
           const response = await fetch("/api/voice/interpret", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ transcript: text, assistantContext: assistantContext.slice(-6000), context }), signal: controller.signal });
           const message = await response.json();
-          if (!response.ok) throw new Error(message.error || "Não consegui preparar o registro. Faça uma pausa e diga novamente, ou use os botões.");
+          if (!response.ok) throw new Error(message.error || "Não consegui preparar o registro. Faça uma pausa e diga de novo.");
           if (sequence !== interpretationSequence.current || pendingRef.current || savedRef.current || connection.current !== pc) return;
           const proposed = readVoiceCommand(message, crypto.randomUUID());
           if (proposed && prepareSubmission(proposed)) {
@@ -163,7 +165,7 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
           if (message.type === "session.output_transcript.delta" && typeof message.delta === "string") {
             assistantContext = (assistantContext + message.delta).slice(-6000);
           }
-          if (message.type === "error") { setError("A sessão de voz encontrou um erro. Você pode continuar pelos botões."); setStatus("error"); stop(); }
+          if (message.type === "error") { setError("A conversa foi interrompida."); setStatus("error"); stop(); }
           // Only patient-transcript triggers may create a proposal. Delegation or assistant
           // speech is not evidence that the patient performed a care task.
           if (message.type === "decision.event" && message.source_event_type === "session.input_transcript.delta"
@@ -178,7 +180,7 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
                 if (connection.current !== pc || savedRef.current || pendingRef.current
                   || message.source_event_id !== latestTranscript.current.id) return;
                 const action = prepareSubmission(proposed);
-                if (!action) setError("Não consegui identificar um único cuidado. Diga o nome e o horário, ou use os botões.");
+                if (!action) setError("Não identifiquei o cuidado. Diga o nome e o horário.");
                 else {
                   acceptedDecisions.current.add(proposed.decisionId);
                   pendingRef.current = proposed;
@@ -202,15 +204,15 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
       const response = await fetch("/api/voice/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sdp: pc.localDescription?.sdp, context }) });
       const result = await response.json();
       if (attempt.current !== thisAttempt) return;
-      if (!response.ok) throw new Error(result.error || "Não foi possível abrir a sessão de voz.");
-      if (!result.transport?.sdp) throw new Error("A sessão de voz não retornou uma conexão válida.");
+      if (!response.ok) throw new Error(result.error || "Não consegui conectar a voz.");
+      if (!result.transport?.sdp) throw new Error("Não consegui conectar a voz. Tente de novo.");
       await pc.setRemoteDescription({ type: "answer", sdp: result.transport.sdp });
       if (!sessionReady.current) handshakeTimer.current = setTimeout(() => {
-        stop(); setStatus("error"); setError("A conexão de voz não ficou pronta. Tente novamente ou continue pelos botões.");
+        stop(); setStatus("error"); setError("A voz demorou para conectar. Tente de novo.");
       }, 20_000);
     } catch (cause) {
       stop(); setStatus("error");
-      setError(cause instanceof Error && cause.name === "NotAllowedError" ? "O microfone não foi autorizado. Você pode permitir o acesso ou usar os botões." : cause instanceof Error ? cause.message : "Não foi possível conectar a voz.");
+      setError(cause instanceof Error && cause.name === "NotAllowedError" ? "Permita o microfone no navegador para falar." : cause instanceof Error ? cause.message : "Não consegui conectar a voz.");
     }
   }
 
@@ -218,19 +220,29 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
 
   async function confirm() {
     if (!pending || saving) return;
-    setSaving(true); setError("");
+    setSaving(true); setSaveFailed(false); setError("");
     const submission = pendingSubmission.current;
-    if (!submission) { setError("O cuidado não está mais disponível. Feche e confira a rotina."); setSaving(false); return; }
+    if (!submission) { setError("Este cuidado não está mais disponível. Volte para a rotina."); setSaving(false); return; }
+    if (saveRequest.current?.decisionId !== pending.decisionId) {
+      saveRequest.current = { decisionId: pending.decisionId, body: JSON.stringify(submission) };
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
     try {
-      const response = await fetch("/api/actions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(submission) });
+      const response = await fetch("/api/actions", { method: "POST", headers: { "Content-Type": "application/json" }, body: saveRequest.current.body, signal: controller.signal });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "O registro não foi salvo.");
       onStateChange(result);
-      if (channel.current?.readyState === "open") channel.current.send(JSON.stringify({ type: "session.commentary.append", delegation_id: pending.delegationId, content: "A pessoa confirmou na tela. O servidor salvou o registro. Informe isso de forma breve, sem acrescentar orientação médica." }));
       savedRef.current = true; pendingRef.current = null; pendingSubmission.current = null;
       setSavedCommand(pending); setSaved(true); setPending(null); setTranscript(""); setError("");
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "O registro não foi salvo. Tente novamente."); }
-    finally { setSaving(false); }
+      try {
+        if (channel.current?.readyState === "open") channel.current.send(JSON.stringify({ type: "session.commentary.append", delegation_id: pending.delegationId, content: "A pessoa confirmou na tela. O servidor salvou o registro. Informe isso de forma breve, sem acrescentar orientação médica." }));
+      } catch { /* The persisted server result remains authoritative if voice disconnects. */ }
+    } catch (cause) {
+      setSaveFailed(true);
+      const networkFailure = controller.signal.aborted || cause instanceof TypeError || cause instanceof SyntaxError;
+      setError(networkFailure || !(cause instanceof Error) ? "Não recebi a confirmação. Tente salvar de novo." : cause.message);
+    } finally { clearTimeout(timeout); setSaving(false); }
   }
 
   const active = status === "listening" && !pending && !saved;
@@ -240,40 +252,40 @@ export default function VoicePanel({ state, onStateChange, onClose }: { state: C
   const taskItem = state.plan.items.find(item => item.id === task?.itemId);
   const isFood = recordCommand?.action.startsWith("food_");
   const isSleep = recordCommand?.action.startsWith("sleep_");
-  const summaryTitle = task?.title || (isSleep ? "Seu sono" : isFood ? "Sua alimentação" : "Pedido de apoio");
-  const summaryValue = recordCommand?.action === "mark_done" ? "Realizado" : recordCommand?.action === "mark_not_done" ? "Não realizado" : recordCommand?.action === "sleep_low" ? "Dormiu pouco" : recordCommand?.action === "sleep_high" ? "Dormiu muito" : recordCommand?.action === "sleep_okay" ? "Sono suficiente" : recordCommand?.action === "food_yes" ? "Conseguiu se alimentar" : recordCommand?.action === "food_partial" ? "Alimentou-se em parte" : recordCommand?.action === "food_no" ? "Ainda não se alimentou" : "Pedir ajuda";
+  const summaryTitle = task?.title || (isSleep ? "Seu sono" : isFood ? "Sua alimentação" : "Pedido de ajuda");
+  const summaryValue = recordCommand?.action === "mark_done" ? "Realizado" : recordCommand?.action === "mark_not_done" ? "Não realizado" : recordCommand?.action === "sleep_low" ? "Dormiu pouco" : recordCommand?.action === "sleep_high" ? "Dormiu muito" : recordCommand?.action === "sleep_okay" ? "Sono suficiente" : recordCommand?.action === "food_yes" ? "Conseguiu se alimentar" : recordCommand?.action === "food_partial" ? "Comeu um pouco" : recordCommand?.action === "food_no" ? "Ainda não se alimentou" : "Pedir ajuda";
   const headline = pending ? "É isso mesmo?" : saved ? "Registro salvo." : status === "error" ? "Vamos tentar de novo?" : active ? "Estou ouvindo…" : status === "connecting" ? "Preparando para ouvir…" : `Pode falar, ${firstName(state.patient.name)}.`;
-  const statusText = pending ? "Confira o registro" : saved ? "Concluído" : status === "connecting" ? "Conectando microfone" : active ? "Microfone ligado" : "Microfone desligado";
+  const statusText = saving ? "Salvando…" : pending ? "Confira o registro" : saved ? "Concluído" : status === "connecting" ? "Conectando microfone" : active ? "Microfone ligado" : "Microfone desligado";
   function correct() {
     dismissedTranscript.current = latestTranscript.current.id;
     pendingRef.current = null; pendingSubmission.current = null;
     if (channel.current?.readyState === "open") channel.current.send(JSON.stringify({ type: "session.commentary.append", delegation_id: pending?.delegationId ?? null, content: "A pessoa cancelou a proposta na tela para dizer novamente. Nada foi salvo. Aguarde o novo relato." }));
-    setPending(null); setTranscript(""); setError("");
+    setPending(null); setTranscript(""); setError(""); setSaveFailed(false); saveRequest.current = null;
   }
   async function playback() {
     if (playbackBlocked) {
-      try { await audio.current?.play(); setPlaybackBlocked(false); } catch { setError("O áudio ainda não pôde tocar. Você pode acompanhar o registro pela tela."); }
+      try { await audio.current?.play(); setPlaybackBlocked(false); } catch { setError("Não consegui tocar o áudio. Acompanhe o registro pela tela."); }
     } else setMuted(value => !value);
   }
 
-  return <section className="voice-panel" data-voice-state={mode}>
+  return <section className="voice-panel" data-voice-state={mode} aria-busy={saving}>
     <div className={`voice-status ${active ? "is-live" : ""}`} role="status" aria-live="polite"><span aria-hidden="true" />{statusText}</div>
     <div className={`voice-orb ${active ? "is-listening" : ""}`} aria-hidden="true">
       {pending || saved ? <CheckIcon weight="bold" /> : status === "connecting" ? <CircleNotchIcon className="spin" /> : status === "error" ? <WarningCircleIcon /> : active ? <WaveformIcon weight="bold" /> : <Image src="/images/voice-microphone.png" alt="" width={144} height={144} priority />}
     </div>
     <h2>{headline}</h2>
-    <p className="voice-description" aria-live="polite">{pending ? "Veja como seu relato será registrado." : saved ? "Seu cuidador já pode acompanhar este registro." : status === "error" ? "Você pode tentar novamente ou continuar pelos botões." : active && interpreting ? "Conferindo seu relato para preparar o registro…" : active ? "Conte o que você fez ou como está se sentindo." : status === "connecting" ? "Permita o microfone quando o navegador pedir." : "Conte o que você fez ou como está se sentindo."}</p>
+    <p className="voice-description" aria-live="polite">{pending ? "Confira se está certo." : saved ? "Seu cuidador já pode ver este registro." : status === "error" ? "Você pode tentar novamente ou continuar pelos botões." : active && interpreting ? "Preparando seu registro…" : active ? "Conte o que você fez ou como está se sentindo." : status === "connecting" ? "Permita o microfone quando o navegador pedir." : "Conte o que você fez ou como está se sentindo."}</p>
     {error && <p className="voice-error" role="alert">{error}</p>}
     <audio ref={audio} autoPlay playsInline muted={muted} hidden aria-hidden="true" />
 
     {(pending || saved) ? <div className="voice-record" aria-label={pending ? label : "Registro salvo"}>
       <div className="voice-record-heading">{taskItem?.category === "activity" ? <PersonSimpleWalkIcon size={48} aria-hidden="true" /> : recordCommand?.action === "request_help" ? <HandHeartIcon size={48} aria-hidden="true" /> : <Image src={`/images/voice-${isSleep ? "sleep" : isFood || taskItem?.category === "nutrition" ? "meal" : "medicine"}.png`} alt="" width={48} height={48} />}<div><small>{isSleep ? "SONO" : isFood ? "ALIMENTAÇÃO" : taskItem?.category === "medication" ? "MEDICAMENTO" : "CUIDADO"}</small><h3>{summaryTitle}</h3></div></div>
       <div className="voice-record-detail"><span><CalendarBlankIcon size={20} />Hoje{task ? `, ${task.time}` : ""}</span><strong><CheckIcon size={18} />{summaryValue}</strong></div>
-    </div> : active ? <div className="voice-transcript" aria-live="polite">{transcript ? <blockquote>“{transcript}”</blockquote> : <p>Estou aqui. Pode começar a falar.</p>}</div> : !saved && status !== "connecting" && status !== "error" ? <div className="voice-examples"><p>EXEMPLOS DO QUE VOCÊ PODE DIZER</p><div>{[{image:"medicine",text:"Tomei meu remédio"},{image:"sleep",text:"Dormi pouco"},{image:"meal",text:"Já almocei"}].map(example=><div className="voice-example" key={example.image}><Image src={`/images/voice-${example.image}.png`} alt="" width={32} height={32} /><span>{example.text}</span></div>)}</div></div> : null}
+    </div> : active ? <div className="voice-transcript" aria-live="polite">{transcript ? <blockquote>“{transcript}”</blockquote> : <p>Pode falar.</p>}</div> : !saved && status !== "connecting" && status !== "error" ? <div className="voice-examples"><p>Você pode dizer</p><div>{[{image:"medicine",text:"Tomei meu remédio"},{image:"sleep",text:"Dormi pouco"},{image:"meal",text:"Já almocei"}].map(example=><div className="voice-example" key={example.image}><Image src={`/images/voice-${example.image}.png`} alt="" width={32} height={32} /><span>{example.text}</span></div>)}</div></div> : null}
 
     <div className="voice-actions">
-      {pending ? <><button className="button primary" disabled={saving} onClick={confirm}>{saving ? <><CircleNotchIcon className="spin" size={20}/>Salvando…</> : "Confirmar registro"}</button><button className="button secondary" disabled={saving} onClick={correct}>Corrigir</button></> : saved ? <><p className="sr-only" role="status">Registro salvo e compartilhado com seu cuidador.</p><button className="button primary" onClick={connect}>Registrar outra coisa</button><button className="button secondary" onClick={()=>{stop();onClose();}}>Voltar para meu dia</button></> : active ? <div className="voice-live-controls"><button onClick={playback} disabled={!audioReady}><span>{muted ? <SpeakerSlashIcon size={24}/> : <SpeakerHighIcon size={24}/>}</span>{playbackBlocked ? "Ouvir resposta" : muted ? "Ativar som" : "Silenciar"}</button><button onClick={()=>{stop();setStatus("idle");setTranscript("");}}><span><StopIcon size={23} weight="fill"/></span>Parar de ouvir</button></div> : <><button className="button primary" onClick={connect} disabled={status === "connecting"}>{status === "connecting" ? <><CircleNotchIcon className="spin" size={20}/>Conectando…</> : <><MicrophoneIcon size={22}/>{status === "error" ? "Tentar novamente" : "Começar a falar"}</>}</button><button className="button secondary" onClick={()=>{stop();onClose();}}>Prefiro usar os botões</button></>}
+      {pending ? <><button className="button primary" disabled={saving} onClick={confirm}>{saving ? <><CircleNotchIcon className="spin" size={20}/>Salvando…</> : saveFailed ? "Tentar salvar de novo" : "Confirmar registro"}</button><button className="button secondary" disabled={saving} onClick={correct}>Corrigir</button></> : saved ? <><p className="sr-only" role="status">Registro salvo e compartilhado com seu cuidador.</p><button className="button primary" onClick={connect}>Registrar outra coisa</button><button className="button secondary" onClick={()=>{stop();onClose();}}>Voltar para meu dia</button></> : active ? <div className="voice-live-controls"><button onClick={playback} disabled={!audioReady}><span>{muted ? <SpeakerSlashIcon size={24}/> : <SpeakerHighIcon size={24}/>}</span>{playbackBlocked ? "Ouvir resposta" : muted ? "Ativar som" : "Silenciar"}</button><button onClick={()=>{stop();setStatus("idle");setTranscript("");}}><span><StopIcon size={23} weight="fill"/></span>Parar de ouvir</button></div> : <><button className="button primary" onClick={connect} disabled={status === "connecting"}>{status === "connecting" ? <><CircleNotchIcon className="spin" size={20}/>Conectando…</> : <><MicrophoneIcon size={22}/>{status === "error" ? "Tentar novamente" : "Começar a falar"}</>}</button><button className="button secondary" onClick={()=>{stop();onClose();}}>Prefiro usar os botões</button></>}
     </div>
-    <p className="voice-privacy"><LockSimpleIcon size={18}/>{pending ? "Só será salvo depois da sua confirmação." : saved ? "Registro disponível no seu histórico." : "Você confere antes de salvar."}</p>
+    <p className="voice-privacy"><LockSimpleIcon size={18}/>{saveFailed ? "Tente novamente para confirmar o registro." : pending ? "Só será salvo quando você confirmar." : saved ? "Registro disponível no seu histórico." : "Você confere antes de salvar."}</p>
   </section>;
 }

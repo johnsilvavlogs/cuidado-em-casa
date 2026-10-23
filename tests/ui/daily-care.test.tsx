@@ -19,8 +19,8 @@ function renderRoutine(role: Role) {
 test("only the patient can open a new support request from the routine", () => {
   const caregiver = renderRoutine("caregiver");
   const patient = renderRoutine("patient");
-  assert.doesNotMatch(caregiver, />Pedir apoio<\/button>/);
-  assert.match(patient, />Pedir apoio<\/button>/);
+  assert.doesNotMatch(caregiver, />Pedir ajuda<\/button>/);
+  assert.match(patient, />Pedir ajuda<\/button>/);
   assert.match(caregiver, />Ver pedidos de ajuda<\/button>/);
   assert.match(caregiver, />Ver pedidos<\/button>/);
 });

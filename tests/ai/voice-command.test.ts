@@ -45,3 +45,18 @@ test("sleep quality remains a reported observation and does not invent hours", (
   assert.equal(action.sleepMinutes, null);
   assert.equal(action.food, null);
 });
+
+test("voice food and quality corrections preserve a reported duration range without inventing minutes", () => {
+  const rangedState: CareState = { ...state, checkIns: [{ ...state.checkIns[0], sleepMinutes: null, sleepRange: "8plus" }] };
+  for (const actionName of ["food_partial", "sleep_low"]) {
+    const command = readVoiceCommand(event(actionName), `${actionName}-request`)!;
+    const action = confirmedVoiceAction(command, rangedState, "2026-10-23");
+    assert.ok(action?.type === "check_in");
+    assert.equal(action.id, "today");
+    assert.equal(action.sleepRange, "8plus");
+    assert.equal(action.sleepMinutes, null);
+    assert.equal(action.mood, "good");
+    assert.equal(action.sleepQuality, actionName === "sleep_low" ? "low" : "okay");
+    assert.equal(action.food, actionName === "food_partial" ? "partial" : null);
+  }
+});

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./patient-polish.css";
 
 export const metadata: Metadata = {
   title: "Cuidado em Casa",
