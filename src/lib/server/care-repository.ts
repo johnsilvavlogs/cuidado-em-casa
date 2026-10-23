@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { createClient, type Client, type Transaction } from "@libsql/client";
 import type { CareState, DocumentRef, ExtractionResult, Role } from "../contracts";
 import { appendEvent, applyAction, CareError, dateInBrazil, demoSchema, ensureTodayTasks, parseAction, parseExtraction, requireCaregiver, requireDraft, type StoredState, type StoredTask } from "./care-domain";
+import { scheduledOnDate } from "../schedule-period";
 import { createDemoState, demoSource } from "./care-demo";
 
 export { CareError } from "./care-domain";
@@ -26,7 +27,13 @@ function stableJson(value: unknown): string {
 }
 
 function publicState(state: StoredState, role: Role, now: Date): CareState {
-  return structuredClone({ ...state, role, tasks: state.tasks.filter((task) => (task as StoredTask).referenceDate === dateInBrazil(now)).sort((a, b) => a.time.localeCompare(b.time)) });
+  const date = dateInBrazil(now);
+  // Hide invalid pending occurrences without deleting the original records or audit.
+  const tasks = state.tasks.filter((task) => {
+    if ((task as StoredTask).referenceDate !== date) return false;
+    return task.status !== "pending" || state.plan.items.some((item) => item.id === task.itemId && scheduledOnDate(item, date));
+  }).sort((a, b) => a.time.localeCompare(b.time));
+  return structuredClone({ ...state, role, tasks });
 }
 
 /** Local-only persistence. A demo ID joins a synthetic case, never a real account. */
